@@ -1,0 +1,15 @@
+{
+  "name": "Y2K Lister",
+  "short_name": "Y2K Lister",
+  "description": "AI-powered resale listing generator for Depop and Shopify",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF3E3",
+  "theme_color": "#F02AA0",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
