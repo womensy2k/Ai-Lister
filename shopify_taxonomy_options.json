@@ -1,0 +1,989 @@
+{
+  "attributes": {
+    "Color": {
+      "values": [
+        {
+          "name": "Beige"
+        },
+        {
+          "name": "Black"
+        },
+        {
+          "name": "Blue"
+        },
+        {
+          "name": "Bronze"
+        },
+        {
+          "name": "Brown"
+        },
+        {
+          "name": "Clear"
+        },
+        {
+          "name": "Gold"
+        },
+        {
+          "name": "Gray"
+        },
+        {
+          "name": "Green"
+        },
+        {
+          "name": "Multicolor"
+        },
+        {
+          "name": "Navy"
+        },
+        {
+          "name": "Orange"
+        },
+        {
+          "name": "Pink"
+        },
+        {
+          "name": "Purple"
+        },
+        {
+          "name": "Red"
+        },
+        {
+          "name": "Rose gold"
+        },
+        {
+          "name": "Silver"
+        },
+        {
+          "name": "White"
+        },
+        {
+          "name": "Yellow"
+        }
+      ]
+    },
+    "Pattern": {
+      "values": [
+        {
+          "name": "Abstract"
+        },
+        {
+          "name": "Animal"
+        },
+        {
+          "name": "Art"
+        },
+        {
+          "name": "Bead & reel"
+        },
+        {
+          "name": "Birds"
+        },
+        {
+          "name": "Brick"
+        },
+        {
+          "name": "Bull's eye"
+        },
+        {
+          "name": "Camouflage"
+        },
+        {
+          "name": "Characters"
+        },
+        {
+          "name": "Checkered"
+        },
+        {
+          "name": "Chevron"
+        },
+        {
+          "name": "Chinoiserie"
+        },
+        {
+          "name": "Christmas"
+        },
+        {
+          "name": "Collage"
+        },
+        {
+          "name": "Coral"
+        },
+        {
+          "name": "Damask"
+        },
+        {
+          "name": "Diagonal"
+        },
+        {
+          "name": "Diamond"
+        },
+        {
+          "name": "Dog's tooth"
+        },
+        {
+          "name": "Dots"
+        },
+        {
+          "name": "Egg & dart"
+        },
+        {
+          "name": "Ethnic"
+        },
+        {
+          "name": "Everlasting knot"
+        },
+        {
+          "name": "Floral"
+        },
+        {
+          "name": "Fret"
+        },
+        {
+          "name": "Geometric"
+        },
+        {
+          "name": "Guilloche"
+        },
+        {
+          "name": "Hearts"
+        },
+        {
+          "name": "Illusion"
+        },
+        {
+          "name": "Lace"
+        },
+        {
+          "name": "Leaves"
+        },
+        {
+          "name": "Logo"
+        },
+        {
+          "name": "Mosaic"
+        },
+        {
+          "name": "Ogee"
+        },
+        {
+          "name": "Organic"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Paisley"
+        },
+        {
+          "name": "Plaid"
+        },
+        {
+          "name": "Rainbow"
+        },
+        {
+          "name": "Random"
+        },
+        {
+          "name": "Scale"
+        },
+        {
+          "name": "Scroll"
+        },
+        {
+          "name": "Solid"
+        },
+        {
+          "name": "Stars"
+        },
+        {
+          "name": "Striped"
+        },
+        {
+          "name": "Swirl"
+        },
+        {
+          "name": "Text"
+        },
+        {
+          "name": "Texture"
+        },
+        {
+          "name": "Tie-dye"
+        },
+        {
+          "name": "Trellis"
+        },
+        {
+          "name": "Vehicle"
+        }
+      ]
+    },
+    "Sleeve length type": {
+      "values": [
+        {
+          "name": "3/4"
+        },
+        {
+          "name": "Cap"
+        },
+        {
+          "name": "Long"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Short"
+        },
+        {
+          "name": "Sleeveless"
+        },
+        {
+          "name": "Spaghetti strap"
+        },
+        {
+          "name": "Strapless"
+        }
+      ]
+    },
+    "Age group": {
+      "values": [
+        {
+          "name": "0-6 months"
+        },
+        {
+          "name": "1-2 years"
+        },
+        {
+          "name": "6-12 months"
+        },
+        {
+          "name": "Adults"
+        },
+        {
+          "name": "All ages"
+        },
+        {
+          "name": "Babies"
+        },
+        {
+          "name": "Kids"
+        },
+        {
+          "name": "Newborn"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Teens"
+        },
+        {
+          "name": "Toddlers"
+        },
+        {
+          "name": "Universal"
+        }
+      ]
+    },
+    "Neckline": {
+      "values": [
+        {
+          "name": "Asymmetric"
+        },
+        {
+          "name": "Bardot"
+        },
+        {
+          "name": "Boat"
+        },
+        {
+          "name": "Cowl"
+        },
+        {
+          "name": "Crew"
+        },
+        {
+          "name": "Halter"
+        },
+        {
+          "name": "Hooded"
+        },
+        {
+          "name": "Mandarin"
+        },
+        {
+          "name": "Mock"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Plunging"
+        },
+        {
+          "name": "Round"
+        },
+        {
+          "name": "Split"
+        },
+        {
+          "name": "Square"
+        },
+        {
+          "name": "Sweetheart"
+        },
+        {
+          "name": "Turtle"
+        },
+        {
+          "name": "V-neck"
+        },
+        {
+          "name": "Wrap"
+        }
+      ]
+    },
+    "Target gender": {
+      "values": [
+        {
+          "name": "Female"
+        },
+        {
+          "name": "Male"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Unisex"
+        }
+      ]
+    },
+    "Top length type": {
+      "values": [
+        {
+          "name": "Bodysuit"
+        },
+        {
+          "name": "Crop top"
+        },
+        {
+          "name": "Long"
+        },
+        {
+          "name": "Medium"
+        },
+        {
+          "name": "Other"
+        }
+      ]
+    },
+    "Care instructions": {
+      "values": [
+        {
+          "name": "Dry clean only"
+        },
+        {
+          "name": "Dryer safe"
+        },
+        {
+          "name": "Hand wash"
+        },
+        {
+          "name": "Ironing instructions"
+        },
+        {
+          "name": "Machine washable"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Tumble dry"
+        }
+      ]
+    },
+    "Fabric": {
+      "values": [
+        {
+          "name": "Acrylic"
+        },
+        {
+          "name": "Angora"
+        },
+        {
+          "name": "Bamboo"
+        },
+        {
+          "name": "Canvas"
+        },
+        {
+          "name": "Cashmere"
+        },
+        {
+          "name": "Corduroy"
+        },
+        {
+          "name": "Cork"
+        },
+        {
+          "name": "Cotton"
+        },
+        {
+          "name": "Denim"
+        },
+        {
+          "name": "Faux fur"
+        },
+        {
+          "name": "Faux leather"
+        },
+        {
+          "name": "Felt"
+        },
+        {
+          "name": "Flannel"
+        },
+        {
+          "name": "Fleece"
+        },
+        {
+          "name": "Fur"
+        },
+        {
+          "name": "Hemp"
+        },
+        {
+          "name": "Jute"
+        },
+        {
+          "name": "Latex"
+        },
+        {
+          "name": "Leather"
+        },
+        {
+          "name": "Linen"
+        },
+        {
+          "name": "Lycra"
+        },
+        {
+          "name": "Lyocell"
+        },
+        {
+          "name": "Merino"
+        },
+        {
+          "name": "Mesh"
+        },
+        {
+          "name": "Modal"
+        },
+        {
+          "name": "Mohair"
+        },
+        {
+          "name": "Neoprene"
+        },
+        {
+          "name": "Nylon"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Plastic"
+        },
+        {
+          "name": "Plush"
+        },
+        {
+          "name": "Polyester"
+        },
+        {
+          "name": "Rattan"
+        },
+        {
+          "name": "Rayon"
+        },
+        {
+          "name": "Rubber"
+        },
+        {
+          "name": "Satin"
+        },
+        {
+          "name": "Sherpa"
+        },
+        {
+          "name": "Silk"
+        },
+        {
+          "name": "Suede"
+        },
+        {
+          "name": "Synthetic"
+        },
+        {
+          "name": "Terrycloth"
+        },
+        {
+          "name": "Tweed"
+        },
+        {
+          "name": "Twill"
+        },
+        {
+          "name": "Velour"
+        },
+        {
+          "name": "Velvet"
+        },
+        {
+          "name": "Vinyl"
+        },
+        {
+          "name": "Viscose"
+        },
+        {
+          "name": "Wool"
+        }
+      ]
+    },
+    "Size": {
+      "values": [
+        {
+          "name": "0"
+        },
+        {
+          "name": "0-3 months"
+        },
+        {
+          "name": "00"
+        },
+        {
+          "name": "000"
+        },
+        {
+          "name": "0X"
+        },
+        {
+          "name": "1"
+        },
+        {
+          "name": "10"
+        },
+        {
+          "name": "10-11 years"
+        },
+        {
+          "name": "11"
+        },
+        {
+          "name": "11-12 years"
+        },
+        {
+          "name": "12"
+        },
+        {
+          "name": "12-13 years"
+        },
+        {
+          "name": "12-18 months"
+        },
+        {
+          "name": "13"
+        },
+        {
+          "name": "13-14 years"
+        },
+        {
+          "name": "14"
+        },
+        {
+          "name": "15"
+        },
+        {
+          "name": "16"
+        },
+        {
+          "name": "18"
+        },
+        {
+          "name": "18-24 months"
+        },
+        {
+          "name": "1X"
+        },
+        {
+          "name": "2"
+        },
+        {
+          "name": "2-3 years"
+        },
+        {
+          "name": "20"
+        },
+        {
+          "name": "22"
+        },
+        {
+          "name": "24"
+        },
+        {
+          "name": "26"
+        },
+        {
+          "name": "28"
+        },
+        {
+          "name": "2T"
+        },
+        {
+          "name": "2X"
+        },
+        {
+          "name": "3"
+        },
+        {
+          "name": "3-4 years"
+        },
+        {
+          "name": "3-6 months"
+        },
+        {
+          "name": "30"
+        },
+        {
+          "name": "32"
+        },
+        {
+          "name": "34"
+        },
+        {
+          "name": "36"
+        },
+        {
+          "name": "38"
+        },
+        {
+          "name": "3T"
+        },
+        {
+          "name": "3X"
+        },
+        {
+          "name": "4"
+        },
+        {
+          "name": "4-5 years"
+        },
+        {
+          "name": "40"
+        },
+        {
+          "name": "42"
+        },
+        {
+          "name": "44"
+        },
+        {
+          "name": "46"
+        },
+        {
+          "name": "48"
+        },
+        {
+          "name": "4T"
+        },
+        {
+          "name": "4X"
+        },
+        {
+          "name": "5"
+        },
+        {
+          "name": "5-6 years"
+        },
+        {
+          "name": "50"
+        },
+        {
+          "name": "52"
+        },
+        {
+          "name": "54"
+        },
+        {
+          "name": "56"
+        },
+        {
+          "name": "58"
+        },
+        {
+          "name": "5T"
+        },
+        {
+          "name": "5X"
+        },
+        {
+          "name": "6"
+        },
+        {
+          "name": "6-7 years"
+        },
+        {
+          "name": "6-9 months"
+        },
+        {
+          "name": "6T"
+        },
+        {
+          "name": "6X"
+        },
+        {
+          "name": "7"
+        },
+        {
+          "name": "7-8 years"
+        },
+        {
+          "name": "7XL"
+        },
+        {
+          "name": "8"
+        },
+        {
+          "name": "8-9 years"
+        },
+        {
+          "name": "8XL"
+        },
+        {
+          "name": "9"
+        },
+        {
+          "name": "9-10 years"
+        },
+        {
+          "name": "9-12 months"
+        },
+        {
+          "name": "Double extra large (XXL)"
+        },
+        {
+          "name": "Double extra small (XXS)"
+        },
+        {
+          "name": "Extra large (XL)"
+        },
+        {
+          "name": "Extra small (XS)"
+        },
+        {
+          "name": "Five extra large (5XL)"
+        },
+        {
+          "name": "Four extra large (4XL)"
+        },
+        {
+          "name": "Large (L)"
+        },
+        {
+          "name": "Medium (M)"
+        },
+        {
+          "name": "Newborn"
+        },
+        {
+          "name": "One size"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Preemie"
+        },
+        {
+          "name": "Six extra large (6XL)"
+        },
+        {
+          "name": "Small (S)"
+        },
+        {
+          "name": "Triple extra large (XXXL)"
+        },
+        {
+          "name": "Triple extra small (XXXS)"
+        }
+      ]
+    },
+    "Clothing features": {
+      "values": [
+        {
+          "name": "Hypoallergenic"
+        },
+        {
+          "name": "Insulated"
+        },
+        {
+          "name": "Moisture wicking"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Quick drying"
+        },
+        {
+          "name": "Reversible"
+        },
+        {
+          "name": "Stretchable"
+        },
+        {
+          "name": "UV protection"
+        },
+        {
+          "name": "Vegan friendly"
+        },
+        {
+          "name": "Water resistant"
+        },
+        {
+          "name": "Windproof"
+        },
+        {
+          "name": "Wrinkle resistant"
+        }
+      ]
+    },
+    "Sleeve style": {
+      "values": [
+        {
+          "name": "Angel"
+        },
+        {
+          "name": "Balloon"
+        },
+        {
+          "name": "Batwing"
+        },
+        {
+          "name": "Bell"
+        },
+        {
+          "name": "Bishop"
+        },
+        {
+          "name": "Cape"
+        },
+        {
+          "name": "Cold shoulder"
+        },
+        {
+          "name": "Cuffed"
+        },
+        {
+          "name": "Dolman"
+        },
+        {
+          "name": "Flutter"
+        },
+        {
+          "name": "Kimono"
+        },
+        {
+          "name": "Lantern"
+        },
+        {
+          "name": "Off-shoulder"
+        },
+        {
+          "name": "One-shoulder"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Peasant"
+        },
+        {
+          "name": "Puff"
+        },
+        {
+          "name": "Raglan"
+        },
+        {
+          "name": "Roll-tab"
+        },
+        {
+          "name": "Sleeveless overlay"
+        },
+        {
+          "name": "Split sleeve"
+        }
+      ]
+    },
+    "Stretch level": {
+      "values": [
+        {
+          "name": "High stretch"
+        },
+        {
+          "name": "Low stretch"
+        },
+        {
+          "name": "Moderate stretch"
+        },
+        {
+          "name": "No stretch"
+        },
+        {
+          "name": "Other"
+        }
+      ]
+    },
+    "Top fit": {
+      "values": [
+        {
+          "name": "Boxy"
+        },
+        {
+          "name": "Fitted"
+        },
+        {
+          "name": "Loose"
+        },
+        {
+          "name": "Muscle"
+        },
+        {
+          "name": "Other"
+        },
+        {
+          "name": "Oversized"
+        },
+        {
+          "name": "Regular"
+        },
+        {
+          "name": "Relaxed"
+        },
+        {
+          "name": "Slim"
+        },
+        {
+          "name": "Tailored"
+        }
+      ]
+    }
+  },
+  "category": {
+    "id": "gid://shopify/TaxonomyCategory/aa-1-13",
+    "name": "Clothing Tops",
+    "fullName": "Apparel & Accessories > Clothing > Clothing Tops"
+  }
+}

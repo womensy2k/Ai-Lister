@@ -1,0 +1,351 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://unpkg.com/streamlit-component-lib@2.0.0/dist/index.js"></script>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:transparent;color:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.card{
+ position:relative;width:100%;min-height:300px;padding:16px;
+ border:1px solid #343944;border-radius:10px;background:#0f1218;
+ transition:border-color .12s ease,background .12s ease,box-shadow .12s ease;
+ overflow:hidden;
+}
+.card.file-over{
+ border:2px solid #22c55e;
+ background:#13251a;
+ box-shadow:0 0 0 4px rgba(34,197,94,.12),0 0 28px rgba(34,197,94,.18);
+}
+.card.uploading::after{
+ content:"";position:absolute;inset:0;background:rgba(10,13,18,.76);
+ backdrop-filter:blur(7px);z-index:50;
+}
+.upload-message{
+ display:none;position:absolute;z-index:60;inset:0;
+ align-items:center;justify-content:center;flex-direction:column;gap:10px;
+ font-size:18px;font-weight:700;
+}
+.card.uploading .upload-message{display:flex}
+.spinner{
+ width:30px;height:30px;border:3px solid rgba(255,255,255,.18);
+ border-top-color:#22c55e;border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.header-thumb{
+ width:86px;height:64px;border-radius:8px;object-fit:cover;
+ background:#242833;border:1px solid #3a404c;flex:0 0 auto;
+}
+.header-main{flex:1;min-width:0}
+.title{font-size:24px;font-weight:750;margin-bottom:5px}
+.meta{font-size:14px;color:#a6adb9}
+.status-dot{
+ width:10px;height:10px;border-radius:50%;background:#22c55e;
+ box-shadow:0 0 10px rgba(34,197,94,.55);flex:0 0 auto;
+}
+.delete{
+ border:1px solid #4b5563;color:#fca5a5;background:#1d212a;
+ border-radius:8px;padding:9px 13px;cursor:pointer;font-size:14px;
+}
+.delete:hover{border-color:#ef4444;background:#281c20}
+
+.section-title{font-weight:700;margin:0 0 12px}
+.photos{
+ display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));
+ gap:14px;min-height:115px;
+}
+.photo{position:relative;border-radius:8px;overflow:hidden;cursor:grab;user-select:none}
+.photo.dragging{opacity:.3}
+.photo img{
+ width:100%;aspect-ratio:1.3/1;object-fit:cover;display:block;
+ border-radius:8px;background:#20242d;
+}
+.photo-footer{display:flex;align-items:center;gap:7px;padding-top:6px}
+.photo-index{color:#9ca3af;font-size:12px;font-weight:700}
+.photo-name{
+ color:#8e96a3;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1
+}
+.remove{
+ border:0;border-radius:6px;color:#fca5a5;background:rgba(239,68,68,.1);
+ padding:2px 7px;cursor:pointer;flex:0 0 auto;
+}
+.empty{
+ min-height:125px;border:1px dashed #414754;border-radius:8px;
+ display:flex;align-items:center;justify-content:center;color:#8f98a7;
+ grid-column:1/-1;
+}
+</style>
+</head>
+<body>
+<div id="card" class="card">
+ <div class="upload-message">
+  <div class="spinner"></div>
+  <div>Uploading photos… please wait</div>
+ </div>
+
+ <div class="header">
+  <img id="headerThumb" class="header-thumb" alt="">
+  <div class="header-main">
+   <div id="title" class="title">Item 1</div>
+   <div id="meta" class="meta">0 photos</div>
+  </div>
+  <div id="status" class="status-dot" title="Ready"></div>
+  <button id="delete" class="delete">Delete Item</button>
+ </div>
+
+ <div class="section-title">Photos in this item</div>
+ <div id="photos" class="photos"></div>
+</div>
+
+<script>
+const card=document.getElementById("card");
+const photosEl=document.getElementById("photos");
+const titleEl=document.getElementById("title");
+const metaEl=document.getElementById("meta");
+const thumbEl=document.getElementById("headerThumb");
+const deleteBtn=document.getElementById("delete");
+
+let itemNumber=1;
+let photos=[];
+let draggedId=null;
+let externalDragDepth=0;
+
+function setHeight(){
+  if(window.Streamlit){
+    Streamlit.setFrameHeight(
+      Math.max(300,document.body.scrollHeight+8)
+    );
+  }
+}
+
+function send(value){
+  if(window.Streamlit){
+    Streamlit.setComponentValue(value);
+  }
+}
+
+function render(args){
+  args=args||{};
+  itemNumber=Number(args.item_number||1);
+
+  try{
+    photos=JSON.parse(args.photos_json||"[]");
+    if(!Array.isArray(photos)) photos=[];
+  }catch(err){
+    console.error("photos_json parse failed",err);
+    photos=[];
+  }
+
+  titleEl.textContent="Item "+itemNumber;
+  metaEl.textContent=photos.length+" photos";
+
+  if(photos.length && photos[0].src){
+    thumbEl.src=photos[0].src;
+    thumbEl.style.display="block";
+  }else{
+    thumbEl.removeAttribute("src");
+    thumbEl.style.display="none";
+  }
+
+  photosEl.innerHTML="";
+
+  if(!photos.length){
+    const empty=document.createElement("div");
+    empty.className="empty";
+    empty.textContent="Drop a photo anywhere on this item";
+    photosEl.appendChild(empty);
+  }else{
+    photos.forEach((photo,index)=>{
+      const el=document.createElement("div");
+      el.className="photo";
+      el.draggable=true;
+      el.dataset.id=String(photo.id);
+
+      const img=document.createElement("img");
+      img.src=photo.src||"";
+      img.alt=photo.name||"Photo";
+
+      const footer=document.createElement("div");
+      footer.className="photo-footer";
+
+      const idx=document.createElement("div");
+      idx.className="photo-index";
+      idx.textContent="#"+(index+1);
+
+      const name=document.createElement("div");
+      name.className="photo-name";
+      name.textContent=photo.name||"";
+
+      const remove=document.createElement("button");
+      remove.className="remove";
+      remove.textContent="×";
+      remove.title="Remove photo";
+      remove.onclick=(e)=>{
+        e.stopPropagation();
+        send({action:"remove",id:String(photo.id)});
+      };
+
+      footer.appendChild(idx);
+      footer.appendChild(name);
+      footer.appendChild(remove);
+      el.appendChild(img);
+      el.appendChild(footer);
+
+      el.addEventListener("dragstart",(e)=>{
+        draggedId=String(photo.id);
+        el.classList.add("dragging");
+        e.dataTransfer.effectAllowed="move";
+        e.dataTransfer.setData("application/x-item-photo",draggedId);
+      });
+
+      el.addEventListener("dragend",()=>{
+        draggedId=null;
+        el.classList.remove("dragging");
+      });
+
+      el.addEventListener("dragover",(e)=>{
+        if(!draggedId)return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect="move";
+      });
+
+      el.addEventListener("drop",(e)=>{
+        if(!draggedId)return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const targetId=String(photo.id);
+        if(targetId===draggedId)return;
+
+        const ordered=photos.slice();
+        const from=ordered.findIndex(p=>String(p.id)===draggedId);
+        const to=ordered.findIndex(p=>String(p.id)===targetId);
+        if(from<0||to<0)return;
+
+        const moved=ordered.splice(from,1)[0];
+        const rect=el.getBoundingClientRect();
+        let insert=to;
+
+        if(e.clientX>rect.left+rect.width/2) insert=to+1;
+        if(from<to) insert--;
+
+        insert=Math.max(0,Math.min(ordered.length,insert));
+        ordered.splice(insert,0,moved);
+
+        photos=ordered;
+        render(args);
+        send({
+          action:"reorder",
+          ids:photos.map(p=>String(p.id))
+        });
+      });
+
+      photosEl.appendChild(el);
+    });
+  }
+
+  setHeight();
+}
+
+function externalFiles(e){
+  return !!(
+    e.dataTransfer &&
+    Array.from(e.dataTransfer.types||[]).includes("Files")
+  );
+}
+
+card.addEventListener("dragenter",(e)=>{
+  if(!externalFiles(e))return;
+  e.preventDefault();
+  externalDragDepth++;
+  card.classList.add("file-over");
+});
+
+card.addEventListener("dragover",(e)=>{
+  if(!externalFiles(e))return;
+  e.preventDefault();
+  e.stopPropagation();
+  e.dataTransfer.dropEffect="copy";
+  card.classList.add("file-over");
+});
+
+card.addEventListener("dragleave",(e)=>{
+  if(!externalFiles(e))return;
+  externalDragDepth--;
+  if(externalDragDepth<=0){
+    externalDragDepth=0;
+    card.classList.remove("file-over");
+  }
+});
+
+card.addEventListener("drop",async(e)=>{
+  if(!externalFiles(e))return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  externalDragDepth=0;
+  card.classList.remove("file-over");
+
+  const files=Array.from(e.dataTransfer.files||[]).filter(
+    f=>/\.(jpe?g|png|webp)$/i.test(f.name)
+  );
+
+  if(!files.length)return;
+
+  card.classList.add("uploading");
+
+  try{
+    const payloads=[];
+
+    for(const file of files){
+      const data=await new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(reader.result);
+        reader.onerror=reject;
+        reader.readAsDataURL(file);
+      });
+
+      payloads.push({
+        name:file.name,
+        type:file.type,
+        data:data
+      });
+    }
+
+    send({
+      action:"add_files",
+      files:payloads
+    });
+
+  }catch(err){
+    console.error(err);
+    card.classList.remove("uploading");
+  }
+});
+
+deleteBtn.onclick=(e)=>{
+  e.preventDefault();
+  e.stopPropagation();
+  send({action:"delete_item"});
+};
+
+if(window.Streamlit){
+  Streamlit.events.addEventListener(
+    Streamlit.RENDER_EVENT,
+    (event)=>{
+      render(event.detail.args||{});
+      card.classList.remove("uploading");
+    }
+  );
+
+  Streamlit.setComponentReady();
+  setHeight();
+}
+</script>
+</body>
+</html>

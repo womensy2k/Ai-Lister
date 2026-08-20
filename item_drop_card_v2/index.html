@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html,body{margin:0;padding:0;background:transparent}
+*{box-sizing:border-box}
+.card{position:relative;width:100%;min-height:300px;padding:16px;border:1px solid #343944;border-radius:10px;background:#0f1218;color:#f4f5f7;font-family:Arial,sans-serif;overflow:hidden}
+.card.over{border:2px solid #22c55e;background:#13251a}
+.header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.thumb{width:86px;height:64px;border-radius:8px;object-fit:cover;background:#242833;display:none}
+.main{flex:1}.title{font-size:24px;font-weight:700}.meta{font-size:14px;color:#a6adb9;margin-top:5px}
+.dot{width:10px;height:10px;border-radius:50%;background:#22c55e}
+.delete{border:1px solid #4b5563;color:#fca5a5;background:#1d212a;border-radius:8px;padding:9px 13px}
+.heading{font-weight:700;margin-bottom:12px}
+.photos{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:14px}
+.photo{cursor:grab}.photo.dragging{opacity:.3}.photo img{width:100%;aspect-ratio:1.3;object-fit:cover;border-radius:8px;display:block}
+.name{font-size:11px;color:#8e96a3;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty{height:125px;border:1px dashed #414754;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#8f98a7;grid-column:1/-1}
+.overlay{display:none;position:absolute;inset:0;z-index:10;background:rgba(10,13,18,.78);align-items:center;justify-content:center;font-weight:700}
+.card.uploading .overlay{display:flex}
+</style>
+</head>
+<body>
+<div id="card" class="card">
+<div id="overlay" class="overlay">Uploading photos… please wait</div>
+<div class="header">
+<img id="thumb" class="thumb">
+<div class="main"><div id="title" class="title">Item</div><div id="meta" class="meta">0 photos</div></div>
+<div class="dot"></div><button id="delete" class="delete">Delete Item</button>
+</div>
+<div class="heading">Photos in this item</div>
+<div id="photos" class="photos"></div>
+</div>
+<script>
+(function(){
+const card=document.getElementById("card"), photosEl=document.getElementById("photos");
+const title=document.getElementById("title"), meta=document.getElementById("meta"), thumb=document.getElementById("thumb");
+let photos=[], itemNumber=1, dragged=null, depth=0;
+
+function send(v){parent.postMessage({isStreamlitMessage:true,type:"streamlit:setComponentValue",value:v},"*");}
+function height(){parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:Math.max(300,document.body.scrollHeight+8)},"*");}
+function isFiles(e){return e.dataTransfer && Array.from(e.dataTransfer.types||[]).includes("Files");}
+
+function render(args){
+ args=args||{}; itemNumber=Number(args.item_number||1);
+ try{photos=JSON.parse(args.photos_json||"[]");}catch(e){photos=[];}
+ title.textContent="Item "+itemNumber; meta.textContent=photos.length+" photos";
+ if(photos[0]&&photos[0].src){thumb.src=photos[0].src;thumb.style.display="block"}else{thumb.style.display="none"}
+ photosEl.innerHTML="";
+ if(!photos.length){
+  let empty=document.createElement("div");empty.className="empty";empty.textContent="Drop photos anywhere on this item";photosEl.appendChild(empty);
+ }else{
+  photos.forEach((p,i)=>{
+   let el=document.createElement("div");el.className="photo";el.draggable=true;el.dataset.id=String(p.id);
+   let im=document.createElement("img");im.src=p.src||"";
+   let nm=document.createElement("div");nm.className="name";nm.textContent=p.name||("Photo "+(i+1));
+   el.append(im,nm);
+   el.ondragstart=e=>{dragged=String(p.id);el.classList.add("dragging");e.dataTransfer.setData("text/plain",dragged);e.dataTransfer.effectAllowed="move"};
+   el.ondragend=()=>{dragged=null;el.classList.remove("dragging")};
+   el.ondragover=e=>{if(dragged){e.preventDefault();e.stopPropagation()}};
+   el.ondrop=e=>{
+    if(!dragged)return;e.preventDefault();e.stopPropagation();
+    let a=photos.slice(),from=a.findIndex(x=>String(x.id)===dragged),to=a.findIndex(x=>String(x.id)===String(p.id));
+    if(from<0||to<0||from===to)return;
+    let m=a.splice(from,1)[0];let r=el.getBoundingClientRect();let ins=to+(e.clientX>r.left+r.width/2?1:0);if(from<to)ins--;
+    a.splice(Math.max(0,Math.min(a.length,ins)),0,m);
+    send({action:"reorder",ids:a.map(x=>String(x.id))});
+   };
+   photosEl.appendChild(el);
+  });
+ }
+ height();
+}
+
+card.ondragenter=e=>{if(!isFiles(e))return;e.preventDefault();depth++;card.classList.add("over")};
+card.ondragover=e=>{if(!isFiles(e))return;e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="copy";card.classList.add("over")};
+card.ondragleave=e=>{if(!isFiles(e))return;depth--;if(depth<=0){depth=0;card.classList.remove("over")}};
+card.ondrop=async e=>{
+ if(!isFiles(e))return;e.preventDefault();e.stopPropagation();depth=0;card.classList.remove("over");
+ let files=Array.from(e.dataTransfer.files||[]).filter(f=>/\.(jpe?g|png|webp)$/i.test(f.name));if(!files.length)return;
+ card.classList.add("uploading");
+ try{
+  let out=[];
+  for(const f of files){
+   let data=await new Promise((res,rej)=>{let r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)});
+   out.push({name:f.name,type:f.type,data});
+  }
+  send({action:"add_files",files:out});
+ }catch(err){card.classList.remove("uploading");console.error(err)}
+};
+document.getElementById("delete").onclick=e=>{e.preventDefault();send({action:"delete_item"})};
+
+addEventListener("message",e=>{
+ let d=e.data;if(!d||!d.isStreamlitMessage)return;
+ if(d.type==="streamlit:render"){render(d.args||{});card.classList.remove("uploading")}
+});
+parent.postMessage({isStreamlitMessage:true,type:"streamlit:componentReady",apiVersion:1},"*");
+height();
+})();
+</script>
+</body>
+</html>

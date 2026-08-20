@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(& \"c:\\\\Users\\\\brant\\\\depop-ai\\\\venv\\\\Scripts\\\\python.exe\" -c \"import openai; print\\(openai.__version__\\); from openai import RateLimitError, APIStatusError, APIConnectionError, APITimeoutError; print\\('ok'\\)\")",
+      "PowerShell(& \"c:\\\\Users\\\\brant\\\\depop-ai\\\\venv\\\\Scripts\\\\python.exe\" -m py_compile \"c:\\\\Users\\\\brant\\\\depop-ai\\\\ai_listing.py\" \"c:\\\\Users\\\\brant\\\\depop-ai\\\\app.py\"; echo \"EXIT:$LASTEXITCODE\")",
+      "PowerShell(& \"c:\\\\Users\\\\brant\\\\depop-ai\\\\venv\\\\Scripts\\\\python.exe\" -m py_compile \"c:\\\\Users\\\\brant\\\\depop-ai\\\\ai_listing.py\"; echo \"EXIT:$LASTEXITCODE\")",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\brant\\\\depop-ai\\\\app.py\",\"c:\\\\Users\\\\brant\\\\depop-ai\\\\ai_listing.py\",\"c:\\\\Users\\\\brant\\\\depop-ai\\\\grouping.py\" | Select-Object Name, Length, @{N='Lines';E={\\(Get-Content $_.FullName | Measure-Object -Line\\).Lines}})",
+      "PowerShell(Get-Command chromium-cli -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command streamlit -ErrorAction SilentlyContinue)",
+      "PowerShell(where.exe chromium-cli 2>$null; npm ls -g --depth=0 2>$null | Select-String chromium; python -c \"import playwright\" 2>$null; echo \"playwright-py-check:$LASTEXITCODE\")",
+      "PowerShell(& \"c:\\\\Users\\\\brant\\\\depop-ai\\\\venv\\\\Scripts\\\\python.exe\" -c \"import playwright; print\\('has playwright'\\)\")",
+      "PowerShell(python -c \"import playwright; print\\('sys playwright ok'\\)\")"
+    ]
+  }
+}

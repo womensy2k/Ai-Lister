@@ -1,0 +1,1241 @@
+{
+  "category": {
+    "id": "gid://shopify/TaxonomyCategory/aa-1-12-4",
+    "name": "Jeans",
+    "full_name": "Apparel & Accessories > Clothing > Pants > Jeans",
+    "is_leaf": true,
+    "parent_id": "gid://shopify/TaxonomyCategory/aa-1-12"
+  },
+  "attributes": {
+    "Color": {
+      "id": "gid://shopify/TaxonomyAttribute/1",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/6",
+          "name": "Beige"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1",
+          "name": "Black"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2",
+          "name": "Blue"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/657",
+          "name": "Bronze"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/7",
+          "name": "Brown"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/17",
+          "name": "Clear"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/4",
+          "name": "Gold"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/8",
+          "name": "Gray"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/9",
+          "name": "Green"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2865",
+          "name": "Multicolor"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/15",
+          "name": "Navy"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/10",
+          "name": "Orange"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/11",
+          "name": "Pink"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/12",
+          "name": "Purple"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/13",
+          "name": "Red"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16",
+          "name": "Rose gold"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/5",
+          "name": "Silver"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/3",
+          "name": "White"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/14",
+          "name": "Yellow"
+        }
+      ]
+    },
+    "Pattern": {
+      "id": "gid://shopify/TaxonomyAttribute/3",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/24477",
+          "name": "Abstract"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24478",
+          "name": "Animal"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24479",
+          "name": "Art"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24480",
+          "name": "Bead & reel"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2283",
+          "name": "Birds"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24481",
+          "name": "Brick"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24482",
+          "name": "Bull's eye"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2866",
+          "name": "Camouflage"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2867",
+          "name": "Characters"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2868",
+          "name": "Checkered"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24483",
+          "name": "Chevron"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24484",
+          "name": "Chinoiserie"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2869",
+          "name": "Christmas"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24485",
+          "name": "Collage"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24486",
+          "name": "Coral"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24487",
+          "name": "Damask"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24488",
+          "name": "Diagonal"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24489",
+          "name": "Diamond"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24490",
+          "name": "Dog's tooth"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2870",
+          "name": "Dots"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24491",
+          "name": "Egg & dart"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24492",
+          "name": "Ethnic"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24493",
+          "name": "Everlasting knot"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2871",
+          "name": "Floral"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24494",
+          "name": "Fret"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1868",
+          "name": "Geometric"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24495",
+          "name": "Guilloche"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2375",
+          "name": "Hearts"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24496",
+          "name": "Illusion"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/28170",
+          "name": "Lace"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2872",
+          "name": "Leaves"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24497",
+          "name": "Logo"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24498",
+          "name": "Mosaic"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24499",
+          "name": "Ogee"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24500",
+          "name": "Organic"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24509",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2873",
+          "name": "Paisley"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24501",
+          "name": "Plaid"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24502",
+          "name": "Rainbow"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24503",
+          "name": "Random"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24504",
+          "name": "Scale"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24505",
+          "name": "Scroll"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2874",
+          "name": "Solid"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2376",
+          "name": "Stars"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2875",
+          "name": "Striped"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24506",
+          "name": "Swirl"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1782",
+          "name": "Text"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24507",
+          "name": "Texture"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2876",
+          "name": "Tie-dye"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24508",
+          "name": "Trellis"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1796",
+          "name": "Vehicle"
+        }
+      ]
+    },
+    "Age group": {
+      "id": "gid://shopify/TaxonomyAttribute/30",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/19404",
+          "name": "0-6 months"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/19406",
+          "name": "1-2 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/19405",
+          "name": "6-12 months"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2403",
+          "name": "Adults"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/534",
+          "name": "All ages"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2974",
+          "name": "Babies"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1515",
+          "name": "Kids"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/19952",
+          "name": "Newborn"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/26412",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2404",
+          "name": "Teens"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/10090",
+          "name": "Toddlers"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/18291",
+          "name": "Universal"
+        }
+      ]
+    },
+    "Fit": {
+      "id": "gid://shopify/TaxonomyAttribute/35",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/6719",
+          "name": "Boyfriend"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/6720",
+          "name": "Mom"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/26414",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/419",
+          "name": "Skinny leg"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/6718",
+          "name": "Slim"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/420",
+          "name": "Straight leg"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/418",
+          "name": "Tapered leg"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/3102",
+          "name": "Wide"
+        }
+      ]
+    },
+    "Waist rise": {
+      "id": "gid://shopify/TaxonomyAttribute/37",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/1376",
+          "name": "High"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1364",
+          "name": "Low"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1365",
+          "name": "Mid"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/26415",
+          "name": "Other"
+        }
+      ]
+    },
+    "Target gender": {
+      "id": "gid://shopify/TaxonomyAttribute/837",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/18",
+          "name": "Female"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/19",
+          "name": "Male"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/26424",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/20",
+          "name": "Unisex"
+        }
+      ]
+    },
+    "Pants length type": {
+      "id": "gid://shopify/TaxonomyAttribute/1178",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/230",
+          "name": "Above the knee"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/231",
+          "name": "Capri"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/232",
+          "name": "Cropped"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/233",
+          "name": "Footed"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/166",
+          "name": "Knee"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1406",
+          "name": "Long"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/26430",
+          "name": "Other"
+        }
+      ]
+    },
+    "Care instructions": {
+      "id": "gid://shopify/TaxonomyAttribute/2336",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/14942",
+          "name": "Dry clean only"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/24715",
+          "name": "Dryer safe"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/14943",
+          "name": "Hand wash"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/14944",
+          "name": "Ironing instructions"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/10542",
+          "name": "Machine washable"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/27281",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/11409",
+          "name": "Tumble dry"
+        }
+      ]
+    },
+    "Fabric": {
+      "id": "gid://shopify/TaxonomyAttribute/2777",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/16980",
+          "name": "Acrylic"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/603",
+          "name": "Angora"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16981",
+          "name": "Bamboo"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16982",
+          "name": "Canvas"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/66",
+          "name": "Cashmere"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/606",
+          "name": "Corduroy"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16983",
+          "name": "Cork"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16984",
+          "name": "Cotton"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/54",
+          "name": "Denim"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/594",
+          "name": "Faux fur"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16985",
+          "name": "Faux leather"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16986",
+          "name": "Felt"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/556",
+          "name": "Flannel"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/555",
+          "name": "Fleece"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/63",
+          "name": "Fur"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1042",
+          "name": "Hemp"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/613",
+          "name": "Jute"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16987",
+          "name": "Latex"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16988",
+          "name": "Leather"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16989",
+          "name": "Linen"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1007",
+          "name": "Lycra"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/50",
+          "name": "Lyocell"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16890",
+          "name": "Merino"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/600",
+          "name": "Mesh"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/57",
+          "name": "Modal"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/983",
+          "name": "Mohair"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/566",
+          "name": "Neoprene"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16990",
+          "name": "Nylon"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/17000",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16991",
+          "name": "Plastic"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16992",
+          "name": "Plush"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16993",
+          "name": "Polyester"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16994",
+          "name": "Rattan"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22664",
+          "name": "Rayon"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16995",
+          "name": "Rubber"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16996",
+          "name": "Satin"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/608",
+          "name": "Sherpa"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16997",
+          "name": "Silk"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/561",
+          "name": "Suede"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/62",
+          "name": "Synthetic"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/1019",
+          "name": "Terrycloth"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/850",
+          "name": "Tweed"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/565",
+          "name": "Twill"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/564",
+          "name": "Velour"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/563",
+          "name": "Velvet"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16998",
+          "name": "Vinyl"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/55",
+          "name": "Viscose"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/16999",
+          "name": "Wool"
+        }
+      ]
+    },
+    "Size": {
+      "id": "gid://shopify/TaxonomyAttribute/2778",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/2878",
+          "name": "0"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/217",
+          "name": "0-3 months"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/5790",
+          "name": "00"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/6703",
+          "name": "000"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81422",
+          "name": "0X"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2879",
+          "name": "1"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2880",
+          "name": "10"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81418",
+          "name": "10-11 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81419",
+          "name": "11-12 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2881",
+          "name": "12"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81420",
+          "name": "12-13 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/221",
+          "name": "12-18 months"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81421",
+          "name": "13-14 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2882",
+          "name": "14"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2883",
+          "name": "16"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2884",
+          "name": "18"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/222",
+          "name": "18-24 months"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81423",
+          "name": "1X"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2885",
+          "name": "2"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/223",
+          "name": "2-3 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2886",
+          "name": "20"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2887",
+          "name": "22"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2888",
+          "name": "24"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2889",
+          "name": "26"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2890",
+          "name": "28"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81409",
+          "name": "2T"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81424",
+          "name": "2X"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/224",
+          "name": "3-4 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/218",
+          "name": "3-6 months"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2891",
+          "name": "30"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2892",
+          "name": "32"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2893",
+          "name": "34"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2894",
+          "name": "36"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2895",
+          "name": "38"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81410",
+          "name": "3T"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81425",
+          "name": "3X"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2896",
+          "name": "4"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/225",
+          "name": "4-5 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2897",
+          "name": "40"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2898",
+          "name": "42"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2899",
+          "name": "44"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2900",
+          "name": "46"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2901",
+          "name": "48"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81411",
+          "name": "4T"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81426",
+          "name": "4X"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/226",
+          "name": "5-6 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2902",
+          "name": "50"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2903",
+          "name": "52"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2904",
+          "name": "54"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2905",
+          "name": "56"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2906",
+          "name": "58"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81412",
+          "name": "5T"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81427",
+          "name": "5X"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2907",
+          "name": "6"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81414",
+          "name": "6-7 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/227",
+          "name": "6-7 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/219",
+          "name": "6-9 months"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2908",
+          "name": "60"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81413",
+          "name": "6T"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81428",
+          "name": "6X"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81415",
+          "name": "7-8 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/228",
+          "name": "7-8 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81407",
+          "name": "7XL"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2909",
+          "name": "8"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81416",
+          "name": "8-9 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/229",
+          "name": "8-9 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81408",
+          "name": "8XL"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/81417",
+          "name": "9-10 years"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/220",
+          "name": "9-12 months"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/17091",
+          "name": "Double extra large (XXL)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2911",
+          "name": "Double extra small (XXS)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/17090",
+          "name": "Extra large (XL)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/17086",
+          "name": "Extra small (XS)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2920",
+          "name": "Five extra large (5XL)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2919",
+          "name": "Four extra large (4XL)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/17089",
+          "name": "Large (L)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/17088",
+          "name": "Medium (M)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/216",
+          "name": "Newborn"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/25940",
+          "name": "One size"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/27608",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/215",
+          "name": "Preemie"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2921",
+          "name": "Six extra large (6XL)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/17087",
+          "name": "Small (S)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2918",
+          "name": "Triple extra large (XXXL)"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/2910",
+          "name": "Triple extra small (XXXS)"
+        }
+      ]
+    },
+    "Clothing features": {
+      "id": "gid://shopify/TaxonomyAttribute/3001",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/22804",
+          "name": "Hypoallergenic"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22805",
+          "name": "Insulated"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22806",
+          "name": "Moisture wicking"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/27750",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22807",
+          "name": "Quick drying"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22808",
+          "name": "Reversible"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22809",
+          "name": "Stretchable"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22810",
+          "name": "UV protection"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22811",
+          "name": "Vegan friendly"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22812",
+          "name": "Water resistant"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22813",
+          "name": "Windproof"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/22814",
+          "name": "Wrinkle resistant"
+        }
+      ]
+    },
+    "Distressing style": {
+      "id": "gid://shopify/TaxonomyAttribute/6674",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/44726",
+          "name": "All-over distressed"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/44727",
+          "name": "Bleached spots"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/44728",
+          "name": "Destroyed"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/44729",
+          "name": "Frayed hem"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/44730",
+          "name": "Knee distressed"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/44731",
+          "name": "Light fading"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/44732",
+          "name": "None"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/44736",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/44733",
+          "name": "Patchwork"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/44734",
+          "name": "Ripped"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/44735",
+          "name": "Whiskered"
+        }
+      ]
+    },
+    "Pocket style": {
+      "id": "gid://shopify/TaxonomyAttribute/6783",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/45621",
+          "name": "Cargo"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/45622",
+          "name": "Coin"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/45623",
+          "name": "Flap"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/45624",
+          "name": "No pockets"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/45631",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/45625",
+          "name": "Patch"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/45626",
+          "name": "Side seam"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/45627",
+          "name": "Slash"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/45628",
+          "name": "Utility"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/45629",
+          "name": "Welt"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/45630",
+          "name": "Zippered"
+        }
+      ]
+    },
+    "Waistband style": {
+      "id": "gid://shopify/TaxonomyAttribute/6850",
+      "values": [
+        {
+          "id": "gid://shopify/TaxonomyValue/46129",
+          "name": "Adjustable"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/46130",
+          "name": "Belt loops"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/46131",
+          "name": "Drawstring"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/46132",
+          "name": "Elastic"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/46133",
+          "name": "Fold-over"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/46134",
+          "name": "Integrated belt"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/46139",
+          "name": "Other"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/46135",
+          "name": "Paperbag"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/46136",
+          "name": "Pull-on"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/46137",
+          "name": "Ribbed knit"
+        },
+        {
+          "id": "gid://shopify/TaxonomyValue/46138",
+          "name": "Smocked"
+        }
+      ]
+    }
+  }
+}
