@@ -26,23 +26,42 @@
 <link rel="icon" href="icon-192.png">
 
 <style>
+  /* 100% / 100vh do NOT reliably match the real visible screen in
+     iOS standalone-PWA mode (a well-documented Safari quirk — the
+     layout viewport used for those units can end up taller OR
+     shorter than what's actually on screen once the browser chrome
+     is gone). 100dvh ("dynamic viewport height") is the unit that
+     actually tracks the true visible area and is what was missing —
+     this was the root cause of content clipping top-to-bottom. */
   html, body {
     margin: 0;
     padding: 0;
     width: 100%;
-    height: 100%;
+    height: 100dvh;
     background: #FBF3E3;
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  /* Reserves real space for the iOS status bar / notch area, filled
-     with the brand cream color, instead of letting the iframe's
-     content sit underneath it (status-bar-style is translucent, so
-     without this the top of the embedded app would be covered). */
+  /* Reserves real space for the iOS status bar / notch/Dynamic Island
+     area, filled with the brand cream color, instead of letting the
+     iframe's content sit underneath it (status-bar-style is
+     translucent, so without this the top of the embedded app would
+     be covered). */
   .status-bar-fill {
     position: fixed;
     top: 0; left: 0; right: 0;
     height: env(safe-area-inset-top, 0px);
+    background: #FBF3E3;
+    z-index: 10;
+  }
+  /* Same idea for the bottom home-indicator gesture bar (iPhone X and
+     later, including 15) — this was missing entirely before, which
+     could clip/hide content behind that bar instead of reserving
+     space for it. */
+  .bottom-fill {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: env(safe-area-inset-bottom, 0px);
     background: #FBF3E3;
     z-index: 10;
   }
@@ -51,16 +70,17 @@
     top: env(safe-area-inset-top, 0px);
     left: 0;
     width: 100%;
-    height: calc(100% - env(safe-area-inset-top, 0px));
+    height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     border: 0;
     background: #FBF3E3;
   }
   .offline-banner {
     position: fixed;
-    left: 0; right: 0; bottom: 0;
+    left: 0; right: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
     z-index: 20;
     display: none;
-    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    padding: 10px 16px;
     background: #2B2130;
     color: #FBF3E3;
     font-size: 13px;
@@ -72,6 +92,7 @@
 </head>
 <body>
   <div class="status-bar-fill"></div>
+  <div class="bottom-fill"></div>
   <iframe
     src="https://y2klister.streamlit.app/?embed=true&embed_options=light_theme"
     title="Y2K Lister"
