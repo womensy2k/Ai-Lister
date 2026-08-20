@@ -682,6 +682,48 @@ st.set_page_config(
     layout="wide"
 )
 
+# ============================================================
+# PAGE ROUTER — navigation between "AI Listing Generator" (this
+# existing app, everything below is completely unchanged) and
+# "AI Description Generator" (a new, entirely separate module for
+# bulk copy-paste listing text with no autopost). Deliberately placed
+# right after set_page_config and before everything else in this
+# file: when the description-generator page is active, it renders
+# and calls st.stop() BEFORE any of the ~7000 lines below it run —
+# none of the existing app's code executes at all for that page.
+#
+# NOTE: originally a st.popover-based "☰" hamburger menu (per the
+# original spec) with buttons inside it setting session_state and
+# calling st.rerun(). Confirmed live, reproducibly, that this broke
+# after one navigation: clicking the popover trigger a second time
+# (after landing on whichever page calls st.stop() right after)
+# silently failed to reopen it — no console error, popover body just
+# never appears again. Root cause looks like a real Streamlit quirk
+# in popover-stays-open-across-rerun bookkeeping when the very next
+# script run is truncated early by st.stop(). st.segmented_control
+# has no such open/close container state to get out of sync — its
+# own selection value is the source of truth and needs no popover at
+# all, so it doesn't hit this bug. Traded the literal "hidden behind
+# a hamburger icon" look for something confirmed to actually work.
+# ============================================================
+_NAV_GENERATOR = "🧵 AI Listing Generator"
+_NAV_DESCGEN = "📋 AI Description Generator"
+
+st.session_state.setdefault("main_nav_control", _NAV_GENERATOR)
+
+st.segmented_control(
+    "Navigate",
+    options=[_NAV_GENERATOR, _NAV_DESCGEN],
+    key="main_nav_control",
+    required=True,
+    label_visibility="collapsed",
+)
+
+if st.session_state["main_nav_control"] == _NAV_DESCGEN:
+    from description_generator import render_description_generator
+    render_description_generator()
+    st.stop()
+
 
 # ============================================================
 # WHOLE ITEM DROP / REORDER COMPONENT
