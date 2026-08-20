@@ -13,7 +13,6 @@ render_description_generator() from behind the page router.
 """
 
 import html as html_module
-import json
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -21,11 +20,12 @@ from pathlib import Path
 import streamlit as st
 
 from ai_listing import analyze_item, build_depop_description, image_to_data_url
-from grouping import group_photos_with_ai, sort_paths_by_capture_time
 
 
 UPLOAD_DIR = Path("uploads") / "description_generator"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+SLOTS_PER_BATCH = 10
 
 
 # ============================================================
@@ -36,6 +36,20 @@ def _init_state():
     st.session_state.setdefault("descgen_items", [])
     st.session_state.setdefault("descgen_current_index", 0)
     st.session_state.setdefault("descgen_upload_counter", 0)
+    # The starting item number for the batch of slots currently on
+    # screen (1, then 11, then 21, ...) — same numbered-batch pattern
+    # as the main app's upload deck, just without needing to replicate
+    # its whole custom drag-and-drop component: plain
+    # st.file_uploader per slot is already fast and, since each slot
+    # IS the grouping (no AI auto-grouping step at all), skips a
+    # whole round of vision-API calls the old bulk-upload flow paid
+    # for — a real, direct speed win, not just a UI change.
+    st.session_state.setdefault("descgen_batch_start", 1)
+    # Bumped every time a batch is confirmed — st.file_uploader has no
+    # programmatic "clear" method, so getting fresh empty slots for
+    # the next batch means giving them a new key, forcing Streamlit to
+    # mount brand-new (empty) uploader widgets.
+    st.session_state.setdefault("descgen_slot_generation", 0)
 
 
 # ============================================================
@@ -110,78 +124,45 @@ def _item_from_error(photos, error):
     }
 
 
-def _group_and_generate(uploaded_files):
-    saved_paths = _save_uploads(uploaded_files)
-
-    # group_photos_with_ai numbers photos 1-based against ITS OWN
-    # internal capture-time sort — sort here first so the numbers it
-    # hands back can be mapped to real paths correctly.
-    records = sort_paths_by_capture_time(saved_paths)
-    sorted_paths = [str(record["path"]) for record in records]
-
-    with st.spinner(f"Grouping {len(sorted_paths)} photo(s) into items..."):
-        try:
-            result = group_photos_with_ai(sorted_paths)
-        except Exception as error:
-            st.error(f"Grouping failed: {error}")
-            return
-    groups = result.get("groups", []) if result else []
-
-    if not groups:
-        st.warning("No items could be grouped from these photos.")
-        return
-
-    jobs = []
-    for group in groups:
-        numbers = group.get("photo_numbers", []) or []
-        photos = [
-            sorted_paths[number - 1]
-            for number in numbers
-            if 0 < number <= len(sorted_paths)
-        ]
-        if photos:
-            jobs.append(photos)
-
-    if not jobs:
-        st.warning("Grouping returned no usable items.")
-        return
-
-    total = len(jobs)
+def _generate_batch(slot_photo_lists):
+    """slot_photo_lists: list of (item_number, [saved photo paths]) for
+    every FILLED slot in the current batch — each slot already IS one
+    item's grouping (no AI auto-grouping call needed at all, which is
+    both simpler and meaningfully faster than the old bulk-upload +
+    AI-grouping flow)."""
+    total = len(slot_photo_lists)
     worker_count = min(3, max(1, total))
     progress = st.progress(0)
     status = st.empty()
     status.write(f"Generating {total} listing(s) in batches of {worker_count}...")
 
-    def generate_one(photos):
+    def generate_one(entry):
+        item_number, photos = entry
         try:
             listing = analyze_item(photos)
             if not listing:
                 raise RuntimeError("AI returned an empty listing.")
-            return photos, listing, None
+            return item_number, photos, listing, None
         except Exception as error:
-            return photos, None, error
+            return item_number, photos, None, error
 
-    results_by_index = {}
+    results_by_number = {}
     completed = 0
 
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = {
-            executor.submit(generate_one, photos): index
-            for index, photos in enumerate(jobs)
-        }
+        futures = [executor.submit(generate_one, entry) for entry in slot_photo_lists]
         for future in as_completed(futures):
-            index = futures[future]
-            photos, listing, error = future.result()
+            item_number, photos, listing, error = future.result()
             if listing is not None:
-                results_by_index[index] = _item_from_listing(photos, listing)
+                results_by_number[item_number] = _item_from_listing(photos, listing)
             else:
-                results_by_index[index] = _item_from_error(photos, error)
+                results_by_number[item_number] = _item_from_error(photos, error)
 
             completed += 1
             status.write(f"Generated {completed} of {total}...")
             progress.progress(completed / total)
 
-    new_items = [results_by_index[i] for i in range(total)]
+    new_items = [results_by_number[num] for num, _ in slot_photo_lists]
     st.session_state["descgen_items"].extend(new_items)
     st.session_state["descgen_current_index"] = len(st.session_state["descgen_items"]) - total
 
@@ -193,26 +174,62 @@ def _group_and_generate(uploaded_files):
 
 
 def _render_ingestion():
-    st.markdown("#### Upload photos")
+    batch_start = st.session_state["descgen_batch_start"]
+    generation = st.session_state["descgen_slot_generation"]
+    batch_end = batch_start + SLOTS_PER_BATCH - 1
+
+    st.markdown(f"#### Upload Items {batch_start}–{batch_end}")
     st.caption(
-        "Drop in every photo for this whole batch at once — items are "
-        "grouped automatically, same as the main app's grouping."
+        "Drop each item's photos into its own slot below — same "
+        "numbered-batch pattern as the main app. Once you generate "
+        f"this batch, you'll get a fresh set of empty slots for "
+        f"items {batch_end + 1}–{batch_end + SLOTS_PER_BATCH}."
     )
 
-    uploaded_files = st.file_uploader(
-        "Photos",
-        type=["jpg", "jpeg", "png", "webp"],
-        accept_multiple_files=True,
-        key="descgen_uploader",
-        label_visibility="collapsed",
-    )
+    slot_files = [None] * SLOTS_PER_BATCH
+    cols_row1 = st.columns(5, gap="small")
+    cols_row2 = st.columns(5, gap="small")
+    all_cols = cols_row1 + cols_row2
 
-    if uploaded_files and st.button(
-        f"Group & Generate ({len(uploaded_files)} photo(s))",
+    for slot_index in range(SLOTS_PER_BATCH):
+        item_number = batch_start + slot_index
+        with all_cols[slot_index]:
+            st.caption(f"**Item {item_number}**")
+            files = st.file_uploader(
+                f"Item {item_number}",
+                type=["jpg", "jpeg", "png", "webp"],
+                accept_multiple_files=True,
+                key=f"descgen_slot_{slot_index}_{generation}",
+                label_visibility="collapsed",
+            )
+            slot_files[slot_index] = files
+            if files:
+                st.caption(f"{len(files)} photo(s)")
+
+    filled_count = sum(1 for files in slot_files if files)
+
+    if st.button(
+        f"Generate This Batch ({filled_count} item(s)) →",
         type="primary",
-        key="descgen_group_generate",
+        key="descgen_generate_batch",
+        disabled=filled_count == 0,
+        width="stretch",
     ):
-        _group_and_generate(uploaded_files)
+        slot_photo_lists = []
+        for slot_index in range(SLOTS_PER_BATCH):
+            files = slot_files[slot_index]
+            if not files:
+                continue
+            item_number = batch_start + slot_index
+            saved_paths = _save_uploads(files)
+            slot_photo_lists.append((item_number, saved_paths))
+
+        _generate_batch(slot_photo_lists)
+
+        # Advance to the next batch of 10 and force fresh empty
+        # uploader widgets for it.
+        st.session_state["descgen_batch_start"] = batch_start + SLOTS_PER_BATCH
+        st.session_state["descgen_slot_generation"] = generation + 1
         st.rerun()
 
 
@@ -232,17 +249,30 @@ def _render_ingestion():
 _copy_button_counter = {"n": 0}
 
 
-def _copy_button(text_value, label="Copy"):
+def _copy_button(text_value, label="Copy", big=False):
     _copy_button_counter["n"] += 1
     unique_id = f"descgen_copy_{_copy_button_counter['n']}"
     safe_text = html_module.escape(str(text_value or ""), quote=True)
     safe_label = html_module.escape(label)
 
-    st.html(
-        f"""
-        <div style="display:inline-block; margin: 2px 0;">
-        <span id="{unique_id}_src" style="display:none">{safe_text}</span>
-        <button id="{unique_id}_btn" style="
+    button_style = (
+        """
+            display: block;
+            width: 100%;
+            padding: 16px 18px;
+            min-height: 52px;
+            border-radius: 10px;
+            border: 1px solid rgba(43,33,48,0.20);
+            background: #2B2130;
+            color: #FBF3E3;
+            font-weight: 800;
+            font-size: 16px;
+            cursor: pointer;
+            white-space: nowrap;
+            margin: 8px 0 16px;
+        """
+        if big
+        else """
             padding: 10px 16px;
             min-height: 44px;
             min-width: 44px;
@@ -254,7 +284,15 @@ def _copy_button(text_value, label="Copy"):
             font-size: 14px;
             cursor: pointer;
             white-space: nowrap;
-        ">{safe_label}</button>
+        """
+    )
+    wrapper_style = "display:block; margin: 2px 0;" if big else "display:inline-block; margin: 2px 0;"
+
+    st.html(
+        f"""
+        <div style="{wrapper_style}">
+        <span id="{unique_id}_src" style="display:none">{safe_text}</span>
+        <button id="{unique_id}_btn" style="{button_style}">{safe_label}</button>
         </div>
         <script>
         (function() {{
@@ -377,6 +415,15 @@ def _render_item_viewer():
 
     _render_photo_strip(item["photos"])
 
+    # Depop has no separate title field on its own listing form — the
+    # title has to be the first line of the one description box,
+    # blank line, then the rest. This is the single button that
+    # actually matches what you'd paste into Depop; Title/Description
+    # below stay separately copyable too, for anything with real
+    # separate fields (Shopify, eBay, etc.).
+    depop_text = f"{item['title']}\n\n{item['description']}"
+    _copy_button(depop_text, "📋 Copy for Depop (Title + Description)", big=True)
+
     st.markdown("#### Title")
     title_col, title_copy_col = st.columns([5, 1])
     with title_col:
@@ -444,11 +491,15 @@ def render_description_generator():
         "Built specifically to route around Depop's shipping-field autopost bug."
     )
 
-    with st.expander("➕ Add more items", expanded=not st.session_state["descgen_items"]):
+    batch_start = st.session_state["descgen_batch_start"]
+    expander_label = (
+        f"➕ Upload Items {batch_start}–{batch_start + SLOTS_PER_BATCH - 1}"
+    )
+    with st.expander(expander_label, expanded=not st.session_state["descgen_items"]):
         _render_ingestion()
 
     if not st.session_state["descgen_items"]:
-        st.info("Upload photos above to get started.")
+        st.info("Upload photos into the slots above to get started.")
         return
 
     _render_item_viewer()
