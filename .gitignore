@@ -2,3 +2,7 @@ venv/
 .env
 uploads/
 __pycache__/
+.claude/settings.local.json
+backup app.py
+bulk_sort_state.json
+vintage_corrections.json

@@ -1,0 +1,7 @@
+streamlit==1.61.1
+openai==2.53.0
+python-dotenv==1.2.2
+requests==2.34.2
+pillow==12.3.0
+ImageHash==4.3.2
+playwright==1.62.0
