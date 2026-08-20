@@ -48,14 +48,16 @@
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  /* Only the BOTTOM home-indicator gesture bar needs manual safe-area
-     handling (independent of status-bar-style, which only affects the
-     top) — reserved and filled with the brand cream instead of letting
-     the iframe's content sit underneath it. */
+  /* Covers TWO things at the bottom: the home-indicator gesture bar's
+     safe area, AND Streamlit's own "Built with Streamlit / Fullscreen"
+     attribution bar baked into the embedded view (not something any
+     embed_options setting can turn off). The iframe stays FULL height
+     behind this — this sits on top (higher z-index) and simply hides
+     that strip rather than shrinking the iframe to make room for it. */
   .bottom-fill {
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    height: env(safe-area-inset-bottom, 0px);
+    height: calc(env(safe-area-inset-bottom, 0px) + 54px);
     background: #FBF3E3;
     z-index: 10;
   }
@@ -64,7 +66,7 @@
     top: 0;
     left: 0;
     width: 100%;
-    height: calc(100dvh - env(safe-area-inset-bottom, 0px));
+    height: 100dvh;
     border: 0;
     background: #FBF3E3;
   }
