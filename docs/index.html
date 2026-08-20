@@ -14,9 +14,20 @@
 
 <!-- iOS "Add to Home Screen" tags. These are what make it open
      standalone (no Safari address bar/toolbar) instead of as a
-     regular bookmark. -->
+     regular bookmark.
+
+     status-bar-style is "default", not "black-translucent". Translucent
+     mode makes content extend full-screen BEHIND a status bar that is
+     ALWAYS a dark semi-transparent black tint — that's what "black" in
+     "black-translucent" means, not "shows your color through it". No
+     background fill color can change that; it was the actual cause of
+     the dark bar at the top instead of the brand cream. "default" makes
+     iOS render its own normal, opaque, light status bar and — the
+     important part — automatically reserve that space so content starts
+     BELOW it, with no manual safe-area-inset-top handling needed here
+     at all. -->
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Y2K Lister">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
@@ -26,41 +37,44 @@
 <link rel="icon" href="icon-192.png">
 
 <style>
+  /* 100dvh (dynamic viewport height), not 100%/100vh — those don't
+     reliably match the true visible screen in iOS standalone-PWA mode. */
   html, body {
     margin: 0;
     padding: 0;
     width: 100%;
-    height: 100%;
+    height: 100dvh;
     background: #FBF3E3;
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  /* Reserves real space for the iOS status bar / notch area, filled
-     with the brand cream color, instead of letting the iframe's
-     content sit underneath it (status-bar-style is translucent, so
-     without this the top of the embedded app would be covered). */
-  .status-bar-fill {
+  /* Only the BOTTOM home-indicator gesture bar needs manual safe-area
+     handling (independent of status-bar-style, which only affects the
+     top) — reserved and filled with the brand cream instead of letting
+     the iframe's content sit underneath it. */
+  .bottom-fill {
     position: fixed;
-    top: 0; left: 0; right: 0;
-    height: env(safe-area-inset-top, 0px);
+    bottom: 0; left: 0; right: 0;
+    height: env(safe-area-inset-bottom, 0px);
     background: #FBF3E3;
     z-index: 10;
   }
   iframe {
     position: fixed;
-    top: env(safe-area-inset-top, 0px);
+    top: 0;
     left: 0;
     width: 100%;
-    height: calc(100% - env(safe-area-inset-top, 0px));
+    height: calc(100dvh - env(safe-area-inset-bottom, 0px));
     border: 0;
     background: #FBF3E3;
   }
   .offline-banner {
     position: fixed;
-    left: 0; right: 0; bottom: 0;
+    left: 0; right: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
     z-index: 20;
     display: none;
-    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    padding: 10px 16px;
     background: #2B2130;
     color: #FBF3E3;
     font-size: 13px;
@@ -71,7 +85,7 @@
 </style>
 </head>
 <body>
-  <div class="status-bar-fill"></div>
+  <div class="bottom-fill"></div>
   <iframe
     src="https://y2klister.streamlit.app/?embed=true&embed_options=light_theme"
     title="Y2K Lister"
