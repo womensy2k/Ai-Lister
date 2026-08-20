@@ -5,12 +5,47 @@ import base64
 import hashlib
 import io
 import json
+import os
 from PIL import Image, ImageOps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import re
 from pathlib import Path
 import html
+
+# ============================================================
+# STREAMLIT CLOUD SECRETS -> ENVIRONMENT VARIABLES
+# Locally, python-dotenv loads .env (gitignored) into os.environ.
+# On Streamlit Cloud there's no .env file at all — secrets are set via
+# the dashboard's "Secrets" panel instead, which only populates
+# st.secrets, NOT os.environ. Every module in this app (ai_listing,
+# qa_review, shopify_integration, ebay_scraper) reads credentials via
+# plain os.getenv(...) at import time, so without this, those imports
+# fail on Cloud even with secrets configured correctly in the
+# dashboard. Copying them into os.environ here — before any of those
+# modules are imported below — makes the exact same os.getenv() code
+# work in both places. A no-op locally (.env already populated
+# os.environ by the time this runs... actually before, but the
+# "already set" check makes the order irrelevant either way).
+_SECRET_ENV_KEYS = (
+    "OPENAI_API_KEY",
+    "SHOPIFY_CLIENT_ID",
+    "SHOPIFY_CLIENT_SECRET",
+    "SHOPIFY_SHOP",
+    "EBAY_CLIENT_ID",
+    "EBAY_CLIENT_SECRET",
+    "EBAY_ENV",
+    "EBAY_MARKETPLACE",
+)
+try:
+    for _secret_key in _SECRET_ENV_KEYS:
+        if _secret_key not in os.environ and _secret_key in st.secrets:
+            os.environ[_secret_key] = str(st.secrets[_secret_key])
+except Exception:
+    # No secrets.toml at all (plain local dev via .env) — st.secrets
+    # itself can raise on first access in that case. Never let this
+    # opportunistic sync break a working local setup.
+    pass
 
 # PUBLIC MARKET SCRAPING
 # Requires: pip install playwright && playwright install chromium
