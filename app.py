@@ -35,6 +35,9 @@ _SECRET_ENV_KEYS = (
     "EBAY_CLIENT_SECRET",
     "EBAY_ENV",
     "EBAY_MARKETPLACE",
+    "SUPABASE_URL",
+    "SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
 )
 try:
     for _secret_key in _SECRET_ENV_KEYS:
@@ -66,6 +69,7 @@ from upload_slot_component import (
     build_slots_payload,
     handle_upload_slot_action,
 )
+from auth import require_auth, logout
 
 
 # ============================================================
@@ -681,6 +685,11 @@ st.set_page_config(
     layout="wide"
 )
 
+# Auth gate — must run before anything else below renders. Shows the
+# login/signup screen and st.stop()s if there's no valid session; every
+# line after this point only ever executes for a logged-in user.
+_current_user = require_auth()
+
 # ============================================================
 # BRAND FOUNDATION — logo, global CSS tokens, sidebar nav, hero
 # header, workflow stepper, session stats. Deliberately placed
@@ -1260,6 +1269,11 @@ def _render_sidebar_nav():
             '<div class="depop-upgrade-badge">🔒 Upgrade</div>',
             unsafe_allow_html=True,
         )
+
+        st.markdown('<div class="depop-nav-divider"></div>', unsafe_allow_html=True)
+        st.caption(_current_user.get("email", ""))
+        if st.button("Log Out", key="sidebar_logout", width="stretch"):
+            logout()
 
 
 # ============================================================

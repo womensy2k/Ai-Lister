@@ -1,5 +1,6 @@
 venv/
 .env
+.streamlit/secrets.toml
 uploads/
 __pycache__/
 .claude/settings.local.json
