@@ -14,7 +14,7 @@ render_description_generator() from behind the page router.
 
 import base64
 import html as html_module
-import re
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
@@ -23,7 +23,18 @@ from pathlib import Path
 import streamlit as st
 from PIL import Image, ImageOps
 
-from ai_listing import analyze_item, build_depop_description, image_to_data_url
+from ai_listing import (
+    analyze_item,
+    apply_vintage_flag,
+    build_depop_description,
+    image_to_data_url,
+    record_vintage_correction,
+)
+from upload_slot_component import (
+    upload_slot_deck,
+    build_slots_payload,
+    handle_upload_slot_action,
+)
 
 
 UPLOAD_DIR = Path("uploads") / "description_generator"
@@ -36,48 +47,35 @@ SLOTS_PER_BATCH = 10
 # STATE
 # ============================================================
 
+def _fresh_slots():
+    return [
+        {"slot": index, "paths": [], "vintage": False}
+        for index in range(SLOTS_PER_BATCH)
+    ]
+
+
 def _init_state():
     st.session_state.setdefault("descgen_items", [])
     st.session_state.setdefault("descgen_current_index", 0)
-    st.session_state.setdefault("descgen_upload_counter", 0)
     # The starting item number for the batch of slots currently on
     # screen (1, then 11, then 21, ...) — same numbered-batch pattern
-    # as the main app's upload deck, just without needing to replicate
-    # its whole custom drag-and-drop component: plain
-    # st.file_uploader per slot is already fast and, since each slot
-    # IS the grouping (no AI auto-grouping step at all), skips a
-    # whole round of vision-API calls the old bulk-upload flow paid
-    # for — a real, direct speed win, not just a UI change.
+    # as the main app's upload deck, using the exact same shared
+    # upload_slot_component the main app uses (see
+    # upload_slot_component.py) so both look and behave identically.
     st.session_state.setdefault("descgen_batch_start", 1)
-    # Bumped every time a batch is confirmed — st.file_uploader has no
-    # programmatic "clear" method, so getting fresh empty slots for
-    # the next batch means giving them a new key, forcing Streamlit to
-    # mount brand-new (empty) uploader widgets.
-    st.session_state.setdefault("descgen_slot_generation", 0)
+    st.session_state.setdefault("descgen_upload_slots", _fresh_slots())
+    # Items already "added" (paths saved to disk, item number assigned)
+    # across one or more batches of 10, but not yet sent to the AI.
+    # Lets you upload 1-10, add them, upload 11-20, add them, ... and
+    # only pay for generation once, for however many you've queued up
+    # — instead of being forced to generate after every single batch
+    # of 10 before the next batch unlocks.
+    st.session_state.setdefault("descgen_pending_items", [])
 
 
 # ============================================================
 # INGESTION
 # ============================================================
-
-def _save_uploads(uploaded_files):
-    """Saves raw uploaded bytes as-is (no EXIF-stripping rewrite) —
-    grouping depends on DateTimeOriginal surviving the save, same
-    reasoning as the main app's own bulk-upload saver."""
-    saved_paths = []
-
-    for uploaded_file in uploaded_files:
-        safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", uploaded_file.name)
-        counter = st.session_state["descgen_upload_counter"]
-        st.session_state["descgen_upload_counter"] = counter + 1
-
-        file_path = UPLOAD_DIR / f"batch_{counter}_{safe_name}"
-        uploaded_file.seek(0)
-        file_path.write_bytes(uploaded_file.getvalue())
-        saved_paths.append(str(file_path))
-
-    return saved_paths
-
 
 def _split_brand_from_bullets(listing):
     """The generation prompt asks for brand as description_bullets[0]
@@ -130,13 +128,13 @@ def _item_from_error(photos, error):
     }
 
 
-def _generate_batch(slot_photo_lists):
-    """slot_photo_lists: list of (item_number, [saved photo paths]) for
-    every FILLED slot in the current batch — each slot already IS one
-    item's grouping (no AI auto-grouping call needed at all, which is
-    both simpler and meaningfully faster than the old bulk-upload +
-    AI-grouping flow)."""
-    total = len(slot_photo_lists)
+def _generate_batch(pending_items):
+    """pending_items: list of {"item_number", "paths", "vintage"} dicts
+    — each already IS one item's grouping (no AI auto-grouping call
+    needed at all, which is both simpler and meaningfully faster than
+    the old bulk-upload + AI-grouping flow). May span several batches
+    of 10 that were added without generating in between."""
+    total = len(pending_items)
     worker_count = min(3, max(1, total))
     progress = st.progress(0)
     status = st.empty()
@@ -150,7 +148,9 @@ def _generate_batch(slot_photo_lists):
         single transient rate-limit hit failed that item outright
         instead of recovering — a real gap under load, not just a
         missing nicety."""
-        item_number, photos = entry
+        item_number = entry["item_number"]
+        photos = entry["paths"]
+        marked_vintage = bool(entry.get("vintage", False))
         last_error = None
 
         for attempt in range(4):
@@ -158,6 +158,20 @@ def _generate_batch(slot_photo_lists):
                 listing = analyze_item(photos)
                 if not listing:
                     raise RuntimeError("AI returned an empty listing.")
+
+                # Same manual-override pattern as the main app's upload
+                # deck Vintage checkbox: force ON only, log a
+                # correction only when it disagreed with the AI's own
+                # tag-evidence check.
+                listing["ai_auto_is_vintage"] = listing.get("is_vintage", False)
+                if marked_vintage:
+                    if not listing["ai_auto_is_vintage"]:
+                        record_vintage_correction(
+                            listing, from_state=False, to_state=True,
+                            ai_auto_verdict=False,
+                        )
+                    listing = apply_vintage_flag(listing, True)
+
                 return item_number, photos, listing, None
             except Exception as error:
                 last_error = error
@@ -177,7 +191,7 @@ def _generate_batch(slot_photo_lists):
     completed = 0
 
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = [executor.submit(generate_one, entry) for entry in slot_photo_lists]
+        futures = [executor.submit(generate_one, entry) for entry in pending_items]
         for future in as_completed(futures):
             item_number, photos, listing, error = future.result()
             if listing is not None:
@@ -189,7 +203,9 @@ def _generate_batch(slot_photo_lists):
             status.write(f"Generated {completed} of {total}...")
             progress.progress(completed / total)
 
-    new_items = [results_by_number[num] for num, _ in slot_photo_lists]
+    new_items = [
+        results_by_number[entry["item_number"]] for entry in pending_items
+    ]
     st.session_state["descgen_items"].extend(new_items)
     st.session_state["descgen_current_index"] = len(st.session_state["descgen_items"]) - total
 
@@ -200,52 +216,8 @@ def _generate_batch(slot_photo_lists):
         status.success(f"Generated {total} item(s).")
 
 
-_SLOT_CARD_CSS = """
-<style>
-div[class*="st-key-descgen_slot_card_"] {
-    border: 1px solid rgba(43,33,48,0.14);
-    border-radius: 12px;
-    background: #FFFFFF;
-    padding: 12px;
-    box-shadow: 0 4px 14px rgba(0,0,0,.05);
-}
-div[class*="st-key-descgen_slot_card_"] div[data-testid="stFileUploaderDropzone"] {
-    background: #FBF3E3;
-    border: 1px dashed rgba(43,33,48,0.25);
-    border-radius: 8px;
-    padding: 8px;
-    min-height: 76px;
-}
-div[class*="st-key-descgen_slot_card_"] div[data-testid="stFileUploaderDropzoneInstructions"] span,
-div[class*="st-key-descgen_slot_card_"] div[data-testid="stFileUploaderDropzoneInstructions"] small {
-    font-size: 11px;
-}
-div[class*="st-key-descgen_slot_card_"] button {
-    padding: 4px 10px !important;
-    font-size: 12px !important;
-}
-div[class*="st-key-descgen_slot_card_"] div[data-testid="stFileUploaderFileName"] {
-    font-size: 11px;
-}
-.descgen-slot-thumbs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 6px;
-}
-.descgen-slot-thumbs img {
-    width: 34px;
-    height: 34px;
-    object-fit: cover;
-    border-radius: 4px;
-    border: 1px solid rgba(43,33,48,0.18);
-}
-</style>
-"""
-
-
 @st.cache_data(show_spinner=False, max_entries=500)
-def _thumb_data_url_from_bytes(file_bytes, max_dimension=120):
+def _thumb_data_url_from_bytes(file_bytes, max_dimension=400):
     """The actual PIL decode/resize/encode work, cached by the file's
     own bytes. Without this, every rerun (which Streamlit triggers on
     ANY widget interaction anywhere on the page) was redoing this for
@@ -261,20 +233,23 @@ def _thumb_data_url_from_bytes(file_bytes, max_dimension=120):
                 image = image.convert("RGB")
             image.thumbnail((max_dimension, max_dimension))
             buffer = BytesIO()
-            image.save(buffer, format="JPEG", quality=70)
+            image.save(buffer, format="JPEG", quality=75)
             encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
             return f"data:image/jpeg;base64,{encoded}"
     except Exception:
         return None
 
 
-def _thumb_data_url_from_upload(uploaded_file, max_dimension=120):
-    """Quick thumbnail straight from the in-memory uploaded bytes —
-    no disk write yet. Files only get saved once the batch is
-    actually generated, so a slot can be filled/cleared/re-picked
-    freely without piling up throwaway files on disk."""
-    uploaded_file.seek(0)
-    return _thumb_data_url_from_bytes(uploaded_file.getvalue(), max_dimension)
+def _slot_thumbnail_data_url(path):
+    """Thumbnail for an already-saved-to-disk slot photo (the new
+    upload_slot_component saves files immediately on drop/pick, unlike
+    the old per-slot st.file_uploader which deferred saving until
+    generation)."""
+    try:
+        file_bytes = Path(path).read_bytes()
+    except OSError:
+        return ""
+    return _thumb_data_url_from_bytes(file_bytes) or ""
 
 
 @st.fragment
@@ -287,76 +262,106 @@ def _render_ingestion():
     # Generator page (including the item viewer below, once items
     # exist), not just the upload section.
     batch_start = st.session_state["descgen_batch_start"]
-    generation = st.session_state["descgen_slot_generation"]
     batch_end = batch_start + SLOTS_PER_BATCH - 1
+    pending = st.session_state["descgen_pending_items"]
 
     st.markdown(f"#### Upload Items {batch_start}–{batch_end}")
     st.caption(
-        "Drop each item's photos into its own slot below — same "
-        "numbered-batch pattern as the main app. Once you generate "
-        f"this batch, you'll get a fresh set of empty slots for "
-        f"items {batch_end + 1}–{batch_end + SLOTS_PER_BATCH}."
+        "Click a thumbnail to make it the Main Photo, drag thumbnails to "
+        "reorder, or drop/click to add more. Add as many batches of 10 "
+        "as you want, then generate for however many you've added."
     )
-    st.html(_SLOT_CARD_CSS)
 
-    slot_files = [None] * SLOTS_PER_BATCH
-    cols_row1 = st.columns(5, gap="small")
-    cols_row2 = st.columns(5, gap="small")
-    all_cols = cols_row1 + cols_row2
+    slots = st.session_state["descgen_upload_slots"]
+    slots_payload = build_slots_payload(slots, batch_start, _slot_thumbnail_data_url)
 
-    for slot_index in range(SLOTS_PER_BATCH):
-        item_number = batch_start + slot_index
-        with all_cols[slot_index]:
-            with st.container(key=f"descgen_slot_card_{slot_index}"):
-                st.markdown(f"**Item {item_number}**")
-                files = st.file_uploader(
-                    f"Item {item_number}",
-                    type=["jpg", "jpeg", "png", "webp"],
-                    accept_multiple_files=True,
-                    key=f"descgen_slot_{slot_index}_{generation}",
-                    label_visibility="collapsed",
-                )
-                slot_files[slot_index] = files
-                if files:
-                    thumbs_html = "".join(
-                        f'<img src="{url}">'
-                        for url in (
-                            _thumb_data_url_from_upload(f) for f in files[:8]
-                        )
-                        if url
-                    )
-                    if thumbs_html:
-                        st.markdown(
-                            f'<div class="descgen-slot-thumbs">{thumbs_html}</div>',
-                            unsafe_allow_html=True,
-                        )
-                    st.caption(f"{len(files)} photo(s)")
+    if upload_slot_deck is not None:
+        deck_result = upload_slot_deck(
+            key="descgen_upload_slot_deck",
+            data={
+                "slots_json": json.dumps(slots_payload, ensure_ascii=False),
+            },
+            on_action_change=lambda: None,
+        )
 
-    filled_count = sum(1 for files in slot_files if files)
+        raw_action = getattr(deck_result, "action", None)
 
-    if st.button(
-        f"Generate This Batch ({filled_count} item(s)) →",
-        type="primary",
-        key="descgen_generate_batch",
-        disabled=filled_count == 0,
-        width="stretch",
-    ):
-        slot_photo_lists = []
-        for slot_index in range(SLOTS_PER_BATCH):
-            files = slot_files[slot_index]
-            if not files:
-                continue
-            item_number = batch_start + slot_index
-            saved_paths = _save_uploads(files)
-            slot_photo_lists.append((item_number, saved_paths))
+        if isinstance(raw_action, dict) and raw_action.get("type"):
+            normalized_action = {
+                "action": raw_action.get("type"),
+                **{
+                    key: value
+                    for key, value in raw_action.items()
+                    if key != "type"
+                },
+            }
 
-        _generate_batch(slot_photo_lists)
+            if handle_upload_slot_action(slots, normalized_action, UPLOAD_DIR):
+                st.rerun(scope="fragment")
+    else:
+        st.error(
+            "Upload deck component unavailable in this Streamlit version."
+        )
 
-        # Advance to the next batch of 10 and force fresh empty
-        # uploader widgets for it.
-        st.session_state["descgen_batch_start"] = batch_start + SLOTS_PER_BATCH
-        st.session_state["descgen_slot_generation"] = generation + 1
-        st.rerun()
+    filled_slots = [
+        index for index, slot in enumerate(slots) if slot.get("paths")
+    ]
+    total_ready = len(pending) + len(filled_slots)
+
+    add_col, generate_col = st.columns(2)
+
+    with add_col:
+        if st.button(
+            f"Add These {len(filled_slots)} & Continue →",
+            key="descgen_add_batch",
+            disabled=not filled_slots,
+            width="stretch",
+        ):
+            for slot_index in filled_slots:
+                slot = slots[slot_index]
+                pending.append({
+                    "item_number": batch_start + slot_index,
+                    "paths": list(slot.get("paths", [])),
+                    "vintage": bool(slot.get("vintage", False)),
+                })
+            st.session_state["descgen_pending_items"] = pending
+            st.session_state["descgen_batch_start"] = batch_start + SLOTS_PER_BATCH
+            st.session_state["descgen_upload_slots"] = _fresh_slots()
+            st.rerun()
+
+    with generate_col:
+        if st.button(
+            f"Generate {total_ready} Item(s) →",
+            type="primary",
+            key="descgen_generate_all",
+            disabled=total_ready == 0,
+            width="stretch",
+        ):
+            # Fold any still-in-progress filled slots in with whatever
+            # was already added, so hitting Generate directly (without
+            # a separate Add click first) never silently drops photos.
+            to_generate = list(pending)
+            for slot_index in filled_slots:
+                slot = slots[slot_index]
+                to_generate.append({
+                    "item_number": batch_start + slot_index,
+                    "paths": list(slot.get("paths", [])),
+                    "vintage": bool(slot.get("vintage", False)),
+                })
+
+            _generate_batch(to_generate)
+
+            st.session_state["descgen_pending_items"] = []
+            if filled_slots:
+                st.session_state["descgen_batch_start"] = batch_start + SLOTS_PER_BATCH
+            st.session_state["descgen_upload_slots"] = _fresh_slots()
+            st.rerun()
+
+    if pending:
+        st.caption(
+            f"{len(pending)} item(s) added from earlier batches and "
+            "waiting to generate."
+        )
 
 
 # ============================================================
@@ -715,10 +720,15 @@ def render_description_generator():
     )
 
     batch_start = st.session_state["descgen_batch_start"]
+    pending_count = len(st.session_state["descgen_pending_items"])
     expander_label = (
         f"➕ Upload Items {batch_start}–{batch_start + SLOTS_PER_BATCH - 1}"
+        + (f" · {pending_count} added, waiting to generate" if pending_count else "")
     )
-    with st.expander(expander_label, expanded=not st.session_state["descgen_items"]):
+    expanded_by_default = (
+        not st.session_state["descgen_items"] or pending_count > 0
+    )
+    with st.expander(expander_label, expanded=expanded_by_default):
         _render_ingestion()
 
     if not st.session_state["descgen_items"]:

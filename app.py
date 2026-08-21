@@ -61,6 +61,11 @@ from ai_listing import (
 )
 from grouping import order_group_photos
 from market_scraper import scrape_market_all
+from upload_slot_component import (
+    upload_slot_deck,
+    build_slots_payload,
+    handle_upload_slot_action,
+)
 
 
 # ============================================================
@@ -892,6 +897,11 @@ def _inject_global_brand_css():
             background: linear-gradient(180deg, #FFFFFF 0%, #FBF3E3 100%);
             border-right: 1px solid var(--depop-border);
         }
+        section[data-testid="stSidebar"] button p {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         .depop-sidebar-logo-row {
             display: flex;
             align-items: center;
@@ -922,6 +932,13 @@ def _inject_global_brand_css():
             font-weight: 600;
             cursor: not-allowed;
             opacity: .62;
+            min-width: 0;
+        }
+        .depop-nav-soon-label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
         }
         .depop-nav-soon-pill {
             font-size: 10px;
@@ -1009,13 +1026,27 @@ def _inject_global_brand_css():
             color: var(--depop-plum-muted);
         }
         .depop-stepper-line {
-            flex: 1 1 auto;
+            flex: 1 1 20px;
+            min-width: 12px;
             height: 2px;
             background: rgba(43, 33, 48, .12);
             margin: 0 14px;
         }
         .depop-stepper-line.done {
             background: linear-gradient(90deg, #F02AA0, #FF6EC7);
+        }
+        /* Below this, "Upload / AI Generation / Review & Edit / Publish"
+           plus 3 connector lines no longer comfortably fits one row
+           next to the sidebar — hide the labels and keep just the
+           numbered dots + connectors, rather than letting the last
+           segment clip off the edge of the card. */
+        @media (max-width: 960px) {
+            .depop-stepper-label { display: none; }
+            .depop-stepper-line { margin: 0 8px; }
+        }
+        @media (max-width: 480px) {
+            .depop-stepper-dot { width: 22px; height: 22px; font-size: 11px; }
+            .depop-stepper-line { margin: 0 5px; }
         }
 
         /* Session stats */
@@ -1218,7 +1249,8 @@ def _render_sidebar_nav():
             ("⚙️", "Settings"),
         ]
         soon_rows = "".join(
-            f'<div class="depop-nav-soon-row"><span>{icon} {label}</span>'
+            f'<div class="depop-nav-soon-row">'
+            f'<span class="depop-nav-soon-label">{icon} {label}</span>'
             f'<span class="depop-nav-soon-pill">Soon</span></div>'
             for icon, label in soon_items
         )
@@ -2317,683 +2349,6 @@ else:
 
 
 # ============================================================
-# UPLOAD SLOT DECK — the 10-item "Upload Your Items" grid.
-# One component renders all 10 cards (same "many cards in one
-# instance" pattern as INVENTORY_DECK below), each showing a large
-# main photo + up to 6 thumbnails once photos exist, or a blank-state
-# drop zone + "+" placeholders before any exist. Click-to-browse and
-# drag-reorder reuse the exact prepareFile()/pointer+FLIP mechanics
-# already proven in ITEM_CARD_JS above — adapted, not reinvented.
-# ============================================================
-
-UPLOAD_SLOT_DECK_HTML = """
-<div class="slot-deck" data-deck></div>
-"""
-
-UPLOAD_SLOT_DECK_CSS = """
-.slot-deck {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 14px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-@media (max-width: 1100px) {
-  .slot-deck { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 700px) {
-  .slot-deck { grid-template-columns: repeat(2, 1fr); }
-}
-
-.slot-card {
-  position: relative;
-  background: #FFFFFF;
-  border: 1px solid rgba(43, 33, 48, .14);
-  border-radius: 12px;
-  padding: 10px;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
-  color: #2B2130;
-  transition: border-color .12s ease, box-shadow .12s ease;
-}
-.slot-card.file-over {
-  border-color: #F02AA0;
-  box-shadow: 0 0 0 3px rgba(240, 42, 160, .18), 0 10px 24px rgba(240, 42, 160, .18);
-}
-.slot-card.uploading .slot-upload-overlay { display: flex; }
-.slot-upload-overlay {
-  display: none;
-  position: absolute;
-  inset: 0;
-  z-index: 50;
-  background: rgba(255, 255, 255, .90);
-  border-radius: 12px;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #F02AA0;
-}
-.slot-upload-overlay .spinner {
-  width: 22px;
-  height: 22px;
-  border: 3px solid rgba(240, 42, 160, .18);
-  border-top-color: #F02AA0;
-  border-radius: 50%;
-  animation: slotSpin .7s linear infinite;
-}
-@keyframes slotSpin { to { transform: rotate(360deg); } }
-
-.slot-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-.slot-badge {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .02em;
-  background: linear-gradient(135deg, #F02AA0, #FF6EC7);
-  color: #fff;
-  padding: 3px 8px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-.slot-meta { font-size: 11px; color: #6B5B66; font-weight: 600; flex: 1; }
-.slot-clear-btn {
-  border: none;
-  background: transparent;
-  color: #6B5B66;
-  font-size: 16px;
-  cursor: pointer;
-  line-height: 1;
-  padding: 2px 5px;
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-.slot-clear-btn:hover { background: rgba(43, 33, 48, .08); color: #2B2130; }
-
-.slot-body { display: flex; gap: 8px; }
-
-.slot-main-drop {
-  flex: 0 0 96px;
-  height: 148px;
-  border: 1.5px dashed rgba(240, 42, 160, .35);
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  text-align: center;
-  cursor: pointer;
-  background: linear-gradient(160deg, rgba(255, 193, 233, .16), rgba(251, 243, 227, .5));
-  transition: border-color .12s ease, background .12s ease;
-  padding: 6px;
-}
-.slot-main-drop:hover {
-  border-color: #F02AA0;
-  background: linear-gradient(160deg, rgba(255, 193, 233, .30), rgba(251, 243, 227, .7));
-}
-.slot-main-drop-icon { font-size: 16px; color: #F02AA0; }
-.slot-main-drop-title { font-size: 10.5px; font-weight: 800; color: #2B2130; line-height: 1.2; }
-.slot-main-drop-sub { font-size: 9px; color: #6B5B66; line-height: 1.2; }
-
-.slot-main-photo {
-  position: relative;
-  flex: 0 0 96px;
-  height: 148px;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid rgba(43, 33, 48, .12);
-  background: #f3ede6;
-}
-.slot-main-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.slot-main-badge {
-  position: absolute;
-  left: 5px;
-  bottom: 5px;
-  background: rgba(43, 33, 48, .82);
-  color: #fff;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: .03em;
-  padding: 2px 6px;
-  border-radius: 5px;
-}
-
-.slot-thumb-grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-auto-rows: 46px;
-  gap: 5px;
-}
-.slot-thumb {
-  position: relative;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid rgba(43, 33, 48, .12);
-  background: #f3ede6;
-  cursor: pointer;
-  touch-action: none;
-}
-.slot-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
-.slot-thumb.pointer-dragging { z-index: 9999; }
-.slot-thumb.reorder-placeholder {
-  background: rgba(240, 42, 160, .10);
-  border: 1.5px dashed rgba(240, 42, 160, .4);
-}
-.slot-thumb-remove {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(43, 33, 48, .72);
-  color: #fff;
-  font-size: 11px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity .12s ease;
-}
-.slot-thumb:hover .slot-thumb-remove { opacity: 1; }
-.slot-thumb-placeholder {
-  border-radius: 8px;
-  border: 1.5px dashed rgba(43, 33, 48, .18);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(43, 33, 48, .3);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  background: rgba(251, 243, 227, .4);
-  transition: border-color .12s ease, color .12s ease;
-}
-.slot-thumb-placeholder:hover {
-  border-color: rgba(240, 42, 160, .4);
-  color: rgba(240, 42, 160, .6);
-}
-
-.slot-footer {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.slot-vintage-label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #6B5B66;
-  cursor: pointer;
-}
-.slot-vintage-label input { cursor: pointer; }
-"""
-
-UPLOAD_SLOT_DECK_JS = """
-export default function(component) {
-  const { data, parentElement, setTriggerValue } = component;
-  const deckEl = parentElement.querySelector("[data-deck]");
-
-  function emit(action) {
-    setTriggerValue("action", action);
-  }
-
-  function isExternalFileDrag(event) {
-    return !!(
-      event.dataTransfer &&
-      Array.from(event.dataTransfer.types || []).includes("Files")
-    );
-  }
-
-  async function prepareFile(file) {
-    const bitmap = await createImageBitmap(file);
-    const MAX_SIDE = 1800;
-    const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d", { alpha: false });
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    bitmap.close();
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
-    return {
-      name: file.name.replace(/\\.[^.]+$/, "") + ".jpg",
-      type: "image/jpeg",
-      data: dataUrl
-    };
-  }
-
-  async function uploadFiles(card, slotIndex, files) {
-    const valid = Array.from(files).filter(
-      file => /\\.(jpe?g|png|webp)$/i.test(file.name)
-    );
-    if (!valid.length) return;
-    card.classList.add("uploading");
-    try {
-      const payload = [];
-      for (const file of valid) payload.push(await prepareFile(file));
-      emit({ type: "add_files", slot_index: slotIndex, files: payload });
-    } catch (error) {
-      console.error("Upload failed", error);
-      card.classList.remove("uploading");
-    }
-  }
-
-  function attachCardDropZone(card, slotIndex) {
-    let depth = 0;
-    card.addEventListener("dragenter", (event) => {
-      if (!isExternalFileDrag(event)) return;
-      event.preventDefault();
-      depth += 1;
-      card.classList.add("file-over");
-    });
-    card.addEventListener("dragover", (event) => {
-      if (!isExternalFileDrag(event)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.dataTransfer.dropEffect = "copy";
-      card.classList.add("file-over");
-    });
-    card.addEventListener("dragleave", (event) => {
-      if (!isExternalFileDrag(event)) return;
-      depth -= 1;
-      if (depth <= 0) {
-        depth = 0;
-        card.classList.remove("file-over");
-      }
-    });
-    card.addEventListener("drop", async (event) => {
-      if (!isExternalFileDrag(event)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      depth = 0;
-      card.classList.remove("file-over");
-      await uploadFiles(card, slotIndex, event.dataTransfer.files || []);
-    });
-  }
-
-  // Pointer + FLIP drag-reorder among a card's own thumbnails — the
-  // exact technique already proven in ITEM_CARD_JS's photo-card
-  // reorder, scoped here to one card's own .slot-thumb-grid only (no
-  // cross-card dragging; that stays the item editor's job later).
-  function attachThumbDrag(thumbCard, grid, slotIndex) {
-    let pointerDrag = null;
-
-    function gridThumbs() {
-      return Array.from(grid.querySelectorAll(".slot-thumb"))
-        .filter(el => el !== pointerDrag?.card && !el.classList.contains("reorder-placeholder"));
-    }
-
-    function flip(mutate) {
-      const cards = gridThumbs();
-      const first = new Map(cards.map(el => [el, el.getBoundingClientRect()]));
-      mutate();
-      cards.forEach(el => {
-        const a = first.get(el);
-        const b = el.getBoundingClientRect();
-        const dx = a.left - b.left;
-        const dy = a.top - b.top;
-        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-        el.style.transition = "none";
-        el.style.transform = `translate(${dx}px, ${dy}px)`;
-        requestAnimationFrame(() => {
-          el.style.transition = "transform 180ms cubic-bezier(.2,.8,.2,1)";
-          el.style.transform = "translate(0,0)";
-        });
-      });
-    }
-
-    function movePlaceholder(event) {
-      const drag = pointerDrag;
-      if (!drag?.placeholder) return;
-      const cards = gridThumbs();
-      if (!cards.length) return;
-
-      let closest = null;
-      let best = Infinity;
-      for (const el of cards) {
-        const r = el.getBoundingClientRect();
-        const d = Math.hypot(
-          event.clientX - (r.left + r.width / 2),
-          event.clientY - (r.top + r.height / 2)
-        );
-        if (d < best) {
-          best = d;
-          closest = { el, r };
-        }
-      }
-      if (!closest) return;
-
-      const r = closest.r;
-      const before = event.clientX < r.left + r.width / 2;
-      const current = Array.from(grid.children).indexOf(drag.placeholder);
-      const target = Array.from(grid.children).indexOf(closest.el);
-      const desired = before ? target : target + 1;
-
-      if (desired === current || desired === current + 1) return;
-
-      flip(() => {
-        if (before) grid.insertBefore(drag.placeholder, closest.el);
-        else grid.insertBefore(drag.placeholder, closest.el.nextSibling);
-      });
-    }
-
-    function startRealDrag(event) {
-      const drag = pointerDrag;
-      if (!drag || drag.active) return;
-      drag.active = true;
-
-      const rect = drag.card.getBoundingClientRect();
-      const ph = document.createElement("div");
-      ph.className = "slot-thumb reorder-placeholder";
-      ph.style.width = rect.width + "px";
-      ph.style.height = rect.height + "px";
-      drag.placeholder = ph;
-      grid.insertBefore(ph, drag.card);
-
-      drag.card.classList.add("pointer-dragging");
-      drag.card.style.position = "fixed";
-      drag.card.style.left = (event.clientX - drag.offsetX) + "px";
-      drag.card.style.top = (event.clientY - drag.offsetY) + "px";
-      drag.card.style.width = rect.width + "px";
-      drag.card.style.height = rect.height + "px";
-      drag.card.style.margin = "0";
-      drag.card.style.transition = "none";
-      drag.card.style.transform = "scale(1.08) rotate(1.2deg)";
-      drag.card.style.pointerEvents = "none";
-      drag.card.style.zIndex = "99999";
-    }
-
-    function pointerMove(event) {
-      const drag = pointerDrag;
-      if (!drag || drag.card !== thumbCard) return;
-
-      const distance = Math.hypot(
-        event.clientX - drag.startX,
-        event.clientY - drag.startY
-      );
-      if (!drag.active) {
-        if (distance < 6) return;
-        startRealDrag(event);
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      drag.card.style.left = (event.clientX - drag.offsetX) + "px";
-      drag.card.style.top = (event.clientY - drag.offsetY) + "px";
-      movePlaceholder(event);
-    }
-
-    function pointerUp(event) {
-      const drag = pointerDrag;
-      if (!drag || drag.card !== thumbCard) return;
-      pointerDrag = null;
-      if (!drag.active) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (drag.placeholder?.parentNode) {
-        drag.placeholder.parentNode.insertBefore(thumbCard, drag.placeholder);
-        drag.placeholder.remove();
-      }
-
-      thumbCard.classList.remove("pointer-dragging");
-      thumbCard.style.position = "";
-      thumbCard.style.left = "";
-      thumbCard.style.top = "";
-      thumbCard.style.width = "";
-      thumbCard.style.height = "";
-      thumbCard.style.margin = "";
-      thumbCard.style.transition = "";
-      thumbCard.style.transform = "";
-      thumbCard.style.pointerEvents = "";
-      thumbCard.style.zIndex = "";
-
-      const ids = Array.from(grid.querySelectorAll(".slot-thumb"))
-        .map(el => String(el.dataset.id));
-      emit({ type: "reorder", slot_index: slotIndex, ids });
-
-      thumbCard.dataset.justDragged = "true";
-      setTimeout(() => delete thumbCard.dataset.justDragged, 300);
-    }
-
-    thumbCard.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) return;
-      if (event.target.closest(".slot-thumb-remove")) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      const rect = thumbCard.getBoundingClientRect();
-      pointerDrag = {
-        card: thumbCard,
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        offsetX: event.clientX - rect.left,
-        offsetY: event.clientY - rect.top,
-        active: false,
-        placeholder: null
-      };
-
-      try { thumbCard.setPointerCapture(event.pointerId); } catch {}
-    });
-    thumbCard.addEventListener("pointermove", pointerMove);
-    thumbCard.addEventListener("pointerup", pointerUp);
-    thumbCard.addEventListener("pointercancel", pointerUp);
-  }
-
-  function render() {
-    let slots = [];
-    try {
-      slots = JSON.parse(data?.slots_json || "[]");
-      if (!Array.isArray(slots)) slots = [];
-    } catch {
-      slots = [];
-    }
-
-    deckEl.innerHTML = "";
-
-    slots.forEach((slot) => {
-      const slotIndex = Number(slot.slot_index);
-      const itemNumber = Number(slot.item_number);
-      const photos = Array.isArray(slot.photos) ? slot.photos : [];
-
-      const card = document.createElement("div");
-      card.className = "slot-card";
-      card.dataset.slotIndex = String(slotIndex);
-
-      const overlay = document.createElement("div");
-      overlay.className = "slot-upload-overlay";
-      overlay.innerHTML = '<div class="spinner"></div><div>Uploading…</div>';
-      card.appendChild(overlay);
-
-      const header = document.createElement("div");
-      header.className = "slot-header";
-      const badge = document.createElement("span");
-      badge.className = "slot-badge";
-      badge.textContent = "ITEM " + itemNumber;
-      const meta = document.createElement("span");
-      meta.className = "slot-meta";
-      meta.textContent = photos.length + (photos.length === 1 ? " photo" : " photos");
-      const clearBtn = document.createElement("button");
-      clearBtn.type = "button";
-      clearBtn.className = "slot-clear-btn";
-      clearBtn.title = "Clear this item";
-      clearBtn.textContent = "⋯";
-      clearBtn.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!photos.length) return;
-        emit({ type: "clear_item", slot_index: slotIndex });
-      });
-      header.appendChild(badge);
-      header.appendChild(meta);
-      header.appendChild(clearBtn);
-      card.appendChild(header);
-
-      const fileInput = document.createElement("input");
-      fileInput.type = "file";
-      fileInput.multiple = true;
-      fileInput.accept = "image/jpeg,image/png,image/webp";
-      fileInput.style.display = "none";
-      fileInput.addEventListener("change", async () => {
-        const files = Array.from(fileInput.files || []);
-        fileInput.value = "";
-        if (!files.length) return;
-        await uploadFiles(card, slotIndex, files);
-      });
-      card.appendChild(fileInput);
-
-      const body = document.createElement("div");
-      body.className = "slot-body";
-
-      if (!photos.length) {
-        const mainDrop = document.createElement("div");
-        mainDrop.className = "slot-main-drop";
-        mainDrop.innerHTML =
-          '<div class="slot-main-drop-icon">⬆</div>' +
-          '<div class="slot-main-drop-title">Add Main Photo</div>' +
-          '<div class="slot-main-drop-sub">Drag &amp; drop or click to upload</div>';
-        mainDrop.addEventListener("click", () => fileInput.click());
-        body.appendChild(mainDrop);
-
-        const grid = document.createElement("div");
-        grid.className = "slot-thumb-grid";
-        for (let i = 0; i < 6; i++) {
-          const ph = document.createElement("div");
-          ph.className = "slot-thumb-placeholder";
-          ph.textContent = "+";
-          ph.addEventListener("click", () => fileInput.click());
-          grid.appendChild(ph);
-        }
-        body.appendChild(grid);
-      } else {
-        const mainPhoto = document.createElement("div");
-        mainPhoto.className = "slot-main-photo";
-        const mainImg = document.createElement("img");
-        mainImg.src = photos[0].src || "";
-        mainImg.alt = photos[0].name || "Main photo";
-        const mainBadge = document.createElement("div");
-        mainBadge.className = "slot-main-badge";
-        mainBadge.textContent = "MAIN PHOTO";
-        mainPhoto.appendChild(mainImg);
-        mainPhoto.appendChild(mainBadge);
-        body.appendChild(mainPhoto);
-
-        const grid = document.createElement("div");
-        grid.className = "slot-thumb-grid";
-
-        const thumbs = photos.slice(1, 7);
-        thumbs.forEach((photo) => {
-          const thumbCard = document.createElement("div");
-          thumbCard.className = "slot-thumb";
-          thumbCard.dataset.id = String(photo.id);
-
-          const img = document.createElement("img");
-          img.src = photo.src || "";
-          img.alt = photo.name || "";
-          img.draggable = false;
-          thumbCard.appendChild(img);
-
-          const removeBtn = document.createElement("button");
-          removeBtn.type = "button";
-          removeBtn.className = "slot-thumb-remove";
-          removeBtn.title = "Remove photo";
-          removeBtn.textContent = "×";
-          removeBtn.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            emit({ type: "remove", slot_index: slotIndex, id: String(photo.id) });
-          });
-          thumbCard.appendChild(removeBtn);
-
-          thumbCard.addEventListener("click", (event) => {
-            if (event.target.closest(".slot-thumb-remove")) return;
-            if (thumbCard.dataset.justDragged === "true") {
-              event.preventDefault();
-              event.stopPropagation();
-              return;
-            }
-            emit({ type: "promote_main", slot_index: slotIndex, id: String(photo.id) });
-          });
-
-          attachThumbDrag(thumbCard, grid, slotIndex);
-
-          grid.appendChild(thumbCard);
-        });
-
-        const remaining = 6 - thumbs.length;
-        for (let i = 0; i < remaining; i++) {
-          const ph = document.createElement("div");
-          ph.className = "slot-thumb-placeholder";
-          ph.textContent = "+";
-          ph.addEventListener("click", () => fileInput.click());
-          grid.appendChild(ph);
-        }
-
-        body.appendChild(grid);
-      }
-
-      card.appendChild(body);
-
-      const footer = document.createElement("div");
-      footer.className = "slot-footer";
-      const label = document.createElement("label");
-      label.className = "slot-vintage-label";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = !!slot.vintage;
-      checkbox.addEventListener("change", () => {
-        emit({ type: "vintage_toggle", slot_index: slotIndex, value: checkbox.checked });
-      });
-      label.appendChild(checkbox);
-      label.appendChild(document.createTextNode(" Vintage"));
-      footer.appendChild(label);
-      card.appendChild(footer);
-
-      attachCardDropZone(card, slotIndex);
-
-      deckEl.appendChild(card);
-    });
-  }
-
-  render();
-
-  return () => {
-    // No timers or global listeners to clean up.
-  };
-}
-"""
-
-if STREAMLIT_V2_AVAILABLE:
-    upload_slot_deck = _streamlit_v2_component(
-        "upload_slot_deck_v1",
-        html=UPLOAD_SLOT_DECK_HTML,
-        css=UPLOAD_SLOT_DECK_CSS,
-        js=UPLOAD_SLOT_DECK_JS,
-        isolate_styles=True,
-    )
-else:
-    upload_slot_deck = None
-
-
-# ============================================================
 # INVENTORY DECK + REVIEW CAROUSEL
 # ============================================================
 
@@ -3762,126 +3117,6 @@ def handle_item_component_action(
     return False
 
 
-def handle_upload_slot_action(slots, action):
-    """
-    Apply an action emitted by the new upload_slot_deck component.
-
-    Operates only on st.session_state["manual_upload_slots"] (the
-    pre-confirm 10-slot deck) — NEVER on manual_groups. Those two are
-    intentionally separate state; manual_sync_bulk_paths() only reads
-    manual_groups and must not be called from here.
-    """
-    if not isinstance(action, dict):
-        return False
-
-    action_type = action.get("action")
-
-    try:
-        slot_index = int(action.get("slot_index", -1))
-    except (TypeError, ValueError):
-        return False
-
-    if slot_index < 0 or slot_index >= len(slots):
-        return False
-
-    slot = slots[slot_index]
-
-    if action_type == "add_files":
-        saved_paths = save_component_files(
-            action.get("files", []),
-            f"slot_{slot_index + 1}",
-        )
-
-        if not saved_paths:
-            return False
-
-        existing = {
-            str(Path(path).resolve())
-            for path in slot.get("paths", [])
-        }
-
-        for path in saved_paths:
-            key = str(Path(path).resolve())
-            if key in existing:
-                continue
-            slot.setdefault("paths", []).append(path)
-            existing.add(key)
-
-        return True
-
-    if action_type == "promote_main":
-        photo_id = str(action.get("id", ""))
-        paths = slot.get("paths", [])
-
-        for index, path in enumerate(paths):
-            if str(Path(path).resolve()) != photo_id:
-                continue
-            if index == 0:
-                return False
-            paths.pop(index)
-            paths.insert(0, path)
-            slot["paths"] = paths
-            return True
-
-        return False
-
-    if action_type == "reorder":
-        ids = action.get("ids", [])
-        if not isinstance(ids, list):
-            return False
-
-        current = {
-            str(Path(path).resolve()): path
-            for path in slot.get("paths", [])
-        }
-
-        # A reorder from the component only ever carries the thumbnail
-        # ids (everything except the main photo at index 0) — validate
-        # it's an exact permutation of exactly that subset, then splice
-        # it back in after the untouched main photo.
-        main_path = slot.get("paths", [None])[0] if slot.get("paths") else None
-        thumb_ids = {
-            key for key in current
-            if main_path is None or key != str(Path(main_path).resolve())
-        }
-
-        if set(ids) != thumb_ids or len(ids) != len(thumb_ids):
-            return False
-
-        reordered = [current[path_id] for path_id in ids]
-        slot["paths"] = ([main_path] if main_path is not None else []) + reordered
-        return True
-
-    if action_type == "remove":
-        photo_id = str(action.get("id", ""))
-        old_paths = slot.get("paths", [])
-
-        new_paths = [
-            path for path in old_paths
-            if str(Path(path).resolve()) != photo_id
-        ]
-
-        if len(new_paths) == len(old_paths):
-            return False
-
-        slot["paths"] = new_paths
-        return True
-
-    if action_type == "vintage_toggle":
-        slot["vintage"] = bool(action.get("value", False))
-        return True
-
-    if action_type == "clear_item":
-        slots[slot_index] = {
-            "slot": slot_index,
-            "paths": [],
-            "signature": [],
-            "vintage": False,
-        }
-        return True
-
-    return False
-
 
 # ============================================================
 # HELPERS
@@ -4537,22 +3772,11 @@ def render_upload_deck():
         or 1
     )
 
-    slots_payload = []
-    for slot_index, slot in enumerate(slots):
-        photos = [
-            {
-                "id": str(Path(path).resolve()),
-                "name": Path(path).name,
-                "src": make_item_thumbnail_data_url(path, max_size=400),
-            }
-            for path in slot.get("paths", [])
-        ]
-        slots_payload.append({
-            "slot_index": slot_index,
-            "item_number": batch_start + slot_index,
-            "vintage": bool(slot.get("vintage", False)),
-            "photos": photos,
-        })
+    slots_payload = build_slots_payload(
+        slots,
+        batch_start,
+        lambda path: make_item_thumbnail_data_url(path, max_size=400),
+    )
 
     if upload_slot_deck is not None:
         deck_result = upload_slot_deck(
@@ -4578,6 +3802,7 @@ def render_upload_deck():
             if handle_upload_slot_action(
                 st.session_state["manual_upload_slots"],
                 normalized_action,
+                UPLOAD_DIR,
             ):
                 rerun_fragment_safe()
     else:
