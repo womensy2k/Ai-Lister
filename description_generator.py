@@ -15,6 +15,7 @@ render_description_generator() from behind the page router.
 import base64
 import html as html_module
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from pathlib import Path
@@ -110,6 +111,7 @@ def _item_from_listing(photos, listing):
         "hashtags": hashtags,
         "description": build_depop_description(condition, size, [brand] + other_bullets if brand else other_bullets, hashtags),
         "error": None,
+        "ebay_comps": None,
     }
 
 
@@ -124,6 +126,7 @@ def _item_from_error(photos, error):
         "hashtags": [],
         "description": "",
         "error": str(error),
+        "ebay_comps": None,
     }
 
 
@@ -140,14 +143,35 @@ def _generate_batch(slot_photo_lists):
     status.write(f"Generating {total} listing(s) in batches of {worker_count}...")
 
     def generate_one(entry):
+        """Rate-limit-aware retries — same pattern as the main app's
+        own generate_one (4 attempts, exponential backoff, longer
+        delay specifically for rate-limit errors). This was
+        previously a bare try/except with no retry at all, meaning a
+        single transient rate-limit hit failed that item outright
+        instead of recovering — a real gap under load, not just a
+        missing nicety."""
         item_number, photos = entry
-        try:
-            listing = analyze_item(photos)
-            if not listing:
-                raise RuntimeError("AI returned an empty listing.")
-            return item_number, photos, listing, None
-        except Exception as error:
-            return item_number, photos, None, error
+        last_error = None
+
+        for attempt in range(4):
+            try:
+                listing = analyze_item(photos)
+                if not listing:
+                    raise RuntimeError("AI returned an empty listing.")
+                return item_number, photos, listing, None
+            except Exception as error:
+                last_error = error
+                if attempt < 3:
+                    error_text = str(error).lower()
+                    is_rate_limit = (
+                        "rate_limit_exceeded" in error_text
+                        or "429" in error_text
+                        or "tokens per min" in error_text
+                    )
+                    delay = (10 if is_rate_limit else 3) * (2 ** attempt)
+                    time.sleep(delay)
+
+        return item_number, photos, None, last_error
 
     results_by_number = {}
     completed = 0
@@ -220,14 +244,18 @@ div[class*="st-key-descgen_slot_card_"] div[data-testid="stFileUploaderFileName"
 """
 
 
-def _thumb_data_url_from_upload(uploaded_file, max_dimension=120):
-    """Quick thumbnail straight from the in-memory uploaded bytes —
-    no disk write yet. Files only get saved once the batch is
-    actually generated, so a slot can be filled/cleared/re-picked
-    freely without piling up throwaway files on disk."""
+@st.cache_data(show_spinner=False, max_entries=500)
+def _thumb_data_url_from_bytes(file_bytes, max_dimension=120):
+    """The actual PIL decode/resize/encode work, cached by the file's
+    own bytes. Without this, every rerun (which Streamlit triggers on
+    ANY widget interaction anywhere on the page) was redoing this for
+    every already-uploaded photo in all 10 slots, not just whatever
+    just changed — real, repeated full-resolution image processing on
+    every click. This was very likely the direct cause of the iPhone
+    upload "freeze": each additional photo dropped in re-processed
+    every photo already sitting in every other slot too."""
     try:
-        uploaded_file.seek(0)
-        with Image.open(BytesIO(uploaded_file.getvalue())) as image:
+        with Image.open(BytesIO(file_bytes)) as image:
             image = ImageOps.exif_transpose(image)
             if image.mode != "RGB":
                 image = image.convert("RGB")
@@ -240,7 +268,24 @@ def _thumb_data_url_from_upload(uploaded_file, max_dimension=120):
         return None
 
 
+def _thumb_data_url_from_upload(uploaded_file, max_dimension=120):
+    """Quick thumbnail straight from the in-memory uploaded bytes —
+    no disk write yet. Files only get saved once the batch is
+    actually generated, so a slot can be filled/cleared/re-picked
+    freely without piling up throwaway files on disk."""
+    uploaded_file.seek(0)
+    return _thumb_data_url_from_bytes(uploaded_file.getvalue(), max_dimension)
+
+
+@st.fragment
 def _render_ingestion():
+    # Scopes reruns caused by interacting with THESE widgets (e.g.
+    # dropping a photo into one slot) to just this fragment, instead
+    # of re-executing the whole page — same pattern the main app uses
+    # for its own upload deck, for the same reason: without it, every
+    # single photo drop was re-rendering the entire Description
+    # Generator page (including the item viewer below, once items
+    # exist), not just the upload section.
     batch_start = st.session_state["descgen_batch_start"]
     generation = st.session_state["descgen_slot_generation"]
     batch_end = batch_start + SLOTS_PER_BATCH - 1
@@ -443,6 +488,100 @@ def _render_photo_strip(photos):
         st.caption(f"+ {len(photos) - 5} more photo(s) for this item")
 
 
+# ============================================================
+# PRICE COMPS — eBay only, on demand per item.
+#
+# The main app's comp pricing also scrapes Depop, which is
+# deliberately throttled to ~1.5s PER ITEM (staggered) because
+# scraping it faster has actually gotten it blocked before — for a
+# batch of 10 that's a real wait, and repeating it here would bring
+# back exactly the slowness this tab is meant to avoid. eBay's side
+# is a plain authenticated REST call (Browse API, no scraping, no
+# anti-bot throttling needed at all) — fast and safe either way, so
+# it's the only source used here. Fetched lazily per item (a button
+# on whichever item you're viewing), not for the whole batch
+# automatically, and cached on the item once fetched so flipping
+# Prev/Next doesn't lose it or re-fetch it.
+# ============================================================
+
+def _fetch_ebay_comps(item):
+    # Both imports deferred to first actual use — same reasoning as
+    # the OpenAI client: don't pay for something not every session
+    # needs just to render the page.
+    from ebay_scraper import search_ebay_comps, ebay_configured
+    from market_scraper import build_market_query
+
+    if not ebay_configured():
+        return {"error": "eBay isn't configured (EBAY_CLIENT_ID / EBAY_CLIENT_SECRET missing)."}
+
+    listing_like = {
+        "title": item["title"],
+        "brand": item["brand"],
+        "garment_type": "",
+    }
+    query = build_market_query(listing_like)
+    if not query:
+        return {"error": "Not enough info to build a search query yet."}
+
+    result = search_ebay_comps(query, limit=24)
+    comps = result.get("comps", []) or []
+    errors = result.get("errors", []) or []
+
+    priced = sorted(
+        c["price"] for c in comps
+        if c.get("price") is not None and c["price"] > 0
+    )
+
+    if not priced:
+        return {
+            "query": query,
+            "count": 0,
+            "error": errors[0] if errors else "No priced eBay comps found for this search.",
+        }
+
+    import statistics
+    median = statistics.median(priced)
+
+    return {
+        "query": query,
+        "count": len(priced),
+        "median": median,
+        "low": min(priced),
+        "high": max(priced),
+        "recommended": round(median * 1.5, 2),
+        "error": None,
+    }
+
+
+def _render_price_comps(item):
+    st.markdown("#### Price Comps (eBay)")
+
+    if item.get("ebay_comps") is None:
+        if st.button("💰 Get Price Comps", key=f"descgen_get_comps_{item['title'][:20]}_{id(item)}"):
+            with st.spinner("Checking eBay for comparable listings..."):
+                item["ebay_comps"] = _fetch_ebay_comps(item)
+            st.rerun()
+        return
+
+    comps = item["ebay_comps"]
+
+    if comps.get("error"):
+        st.caption(f"⚠️ {comps['error']}")
+        if st.button("Retry", key=f"descgen_retry_comps_{id(item)}"):
+            item["ebay_comps"] = None
+            st.rerun()
+        return
+
+    price_col1, price_col2, price_col3 = st.columns(3)
+    with price_col1:
+        st.metric("Recommended", f"${comps['recommended']:.0f}")
+    with price_col2:
+        st.metric("Median", f"${comps['median']:.0f}")
+    with price_col3:
+        st.metric("Range", f"${comps['low']:.0f}–${comps['high']:.0f}")
+    st.caption(f"Based on {comps['count']} active eBay listing(s) for \"{comps['query']}\"")
+
+
 def _render_item_viewer():
     items = st.session_state["descgen_items"]
     total = len(items)
@@ -548,6 +687,9 @@ def _render_item_viewer():
                 field_label, value=item[field_key], key=f"descgen_{field_key}_{index}",
             )
             _copy_button(item[field_key], f"📋 Copy {field_label}")
+
+    st.markdown("---")
+    _render_price_comps(item)
 
 
 # ============================================================

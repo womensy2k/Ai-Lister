@@ -18,14 +18,6 @@ def _shop():
     return value
 
 
-def shopify_connection_ready():
-    return bool(
-        _shop()
-        and os.getenv("SHOPIFY_CLIENT_ID")
-        and os.getenv("SHOPIFY_CLIENT_SECRET")
-    )
-
-
 def _token():
     shop = _shop()
     cid = os.getenv("SHOPIFY_CLIENT_ID")

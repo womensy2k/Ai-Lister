@@ -175,13 +175,8 @@ def depop_search_url(query: str) -> str:
 #
 # Browsers are kept alive for the lifetime of the worker thread (which,
 # in this app, lives for the lifetime of the Streamlit server process).
-# Call reset_browser_pool() from a maintenance path if you ever want to
-# force-close everything and reclaim memory (e.g. wired to a debug
-# button) — it is never called automatically.
 
 _thread_local = threading.local()
-_pool_lock = threading.Lock()
-_active_playwrights = []  # (thread_ident, playwright, browser) — for optional manual reset
 
 
 def _get_thread_browser():
@@ -206,40 +201,7 @@ def _get_thread_browser():
     _thread_local.playwright = playwright
     _thread_local.browser = browser
 
-    with _pool_lock:
-        _active_playwrights.append(
-            (threading.get_ident(), playwright, browser)
-        )
-
     return browser
-
-
-def reset_browser_pool():
-    """
-    Force-close every pooled browser. Not called automatically — wire it
-    to a manual maintenance action if you want to reclaim memory between
-    long Streamlit sessions.
-
-    NOTE: Playwright's sync API ties objects to the thread that created
-    them, so this only cleanly closes browsers when called from the same
-    worker threads that created them. In practice that means calling this
-    from inside a fresh scrape_depop_all-style ThreadPoolExecutor run
-    with the same number of workers is the safe way to guarantee it hits
-    every pooled browser.
-    """
-    with _pool_lock:
-        pending = list(_active_playwrights)
-        _active_playwrights.clear()
-
-    for _ident, playwright, browser in pending:
-        try:
-            browser.close()
-        except Exception:
-            pass
-        try:
-            playwright.stop()
-        except Exception:
-            pass
 
 
 def _scrape_one_depop(query: str, limit: int = 24, start_delay: float = 0.0) -> dict:

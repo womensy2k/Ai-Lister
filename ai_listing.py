@@ -10,26 +10,48 @@ from io import BytesIO
 from PIL import Image, ImageOps, ImageEnhance, ImageFilter
 
 from dotenv import load_dotenv
-from openai import OpenAI, RateLimitError, APIConnectionError, APITimeoutError
-
-
-# ============================================================
-# OPENAI SETUP
-# ============================================================
 
 load_dotenv()
 
-api_key = os.getenv("OPENAI_API_KEY")
 
-if not api_key:
-    raise ValueError(
-        "OPENAI_API_KEY was not found. "
-        "Make sure your .env file contains your API key."
-    )
+# ============================================================
+# OPENAI SETUP — lazy-loaded
+# ============================================================
+# Importing the `openai` package itself takes ~0.9s (confirmed by
+# timing it directly) — a real, measurable chunk of "the app is slow
+# to load", since this module is imported unconditionally by BOTH
+# pages (app.py's Generator page and description_generator.py) before
+# either can render anything, even just the upload screen. Deferring
+# the import (and the client construction) to the first actual AI
+# call means the page itself renders without paying that cost; it's
+# only paid once, the first time someone actually clicks Generate —
+# which is already expecting to take a few seconds for a real API
+# call, so the added ~0.9s is far less noticeable there than it is
+# sitting in front of an unresponsive page on load.
+_openai_client = None
+_openai_module = None
 
-client = OpenAI(
-    api_key=api_key
-)
+
+def _get_openai():
+    """Returns (client, openai_module) — openai_module gives access to
+    the exception classes (RateLimitError etc.) without a second
+    top-level import. Constructed once per process and cached."""
+    global _openai_client, _openai_module
+
+    if _openai_client is None:
+        import openai as openai_module
+
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "OPENAI_API_KEY was not found. "
+                "Make sure your .env file contains your API key."
+            )
+
+        _openai_module = openai_module
+        _openai_client = openai_module.OpenAI(api_key=api_key)
+
+    return _openai_client, _openai_module
 
 
 # ============================================================
@@ -62,6 +84,7 @@ def vision_chat_completion(content, temperature=0, models=None, retries_per_mode
     429 rate limit retries the same model with backoff a couple times, then
     moves on to the next model in the chain rather than failing outright.
     """
+    client, openai_module = _get_openai()
     models_to_try = models or VISION_MODEL_CHAIN
     last_error = None
 
@@ -82,13 +105,13 @@ def vision_chat_completion(content, temperature=0, models=None, retries_per_mode
                     kwargs["response_format"] = response_format
 
                 return client.chat.completions.create(**kwargs)
-            except RateLimitError as exc:
+            except openai_module.RateLimitError as exc:
                 last_error = exc
                 if attempt < retries_per_model - 1:
                     time.sleep(1.5 * (attempt + 1))
                 else:
                     print(f"{model} rate-limited, falling back to next model...")
-            except (APIConnectionError, APITimeoutError) as exc:
+            except (openai_module.APIConnectionError, openai_module.APITimeoutError) as exc:
                 last_error = exc
                 time.sleep(1.0 * (attempt + 1))
 
