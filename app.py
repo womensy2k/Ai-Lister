@@ -677,6 +677,560 @@ st.set_page_config(
 )
 
 # ============================================================
+# BRAND FOUNDATION — logo, global CSS tokens, sidebar nav, hero
+# header, workflow stepper, session stats. Deliberately placed
+# before the page router below (and before st.stop() can fire for
+# the Description Generator page) so BOTH pages get the same CSS
+# tokens/classes and the same sidebar — previously the equivalent
+# CSS injection ran after the router, so the Description Generator
+# page's own ".brand-step" markup (description_generator.py) never
+# actually had matching CSS defined for it.
+# ============================================================
+
+@st.cache_data(show_spinner=False)
+def _brand_logo_data_url():
+    """Base64-embeds the brand logo (background already removed,
+    resized/palette-quantized to ~12KB) so the header can use it as a
+    plain <img src="data:..."> with no separate file request — cached
+    so the file isn't re-read/re-encoded on every rerun (Streamlit
+    reruns this whole script on every interaction)."""
+    path = Path(__file__).with_name("logo_transparent.png")
+    if not path.exists():
+        return ""
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def _inject_global_brand_css():
+    st.markdown(
+        """
+        <style>
+        :root {
+            --depop-cream: #FBF3E3;
+            --depop-white: #FFFFFF;
+            --depop-pink: #F02AA0;
+            --depop-pink-light: #FFC1E9;
+            --depop-pink-mid: #FF6EC7;
+            --depop-plum: #2B2130;
+            --depop-plum-muted: #6B5B66;
+            --depop-border: rgba(43, 33, 48, .14);
+            --depop-success: #22c55e;
+            --depop-radius-lg: 22px;
+            --depop-radius-md: 12px;
+            --depop-radius-sm: 8px;
+            --depop-shadow-card: 0 6px 14px rgba(0, 0, 0, .18);
+            --depop-shadow-glow: 0 12px 32px rgba(240, 42, 160, .10);
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&display=swap');
+
+        .brand-header {
+            background: linear-gradient(135deg, #FBF3E3 0%, #FFFFFF 65%);
+            border: 1px solid rgba(240, 42, 160, .16);
+            border-radius: 22px;
+            padding: 26px 34px;
+            margin-bottom: 16px;
+            box-shadow: 0 12px 32px rgba(240, 42, 160, .10);
+            position: relative;
+            overflow: hidden;
+        }
+        .brand-header::before {
+            content: "";
+            position: absolute;
+            top: -50px;
+            right: -50px;
+            width: 190px;
+            height: 190px;
+            background: radial-gradient(
+                circle, rgba(240, 42, 160, .16), transparent 70%
+            );
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .brand-header::after {
+            content: "";
+            position: absolute;
+            bottom: -60px;
+            left: 20%;
+            width: 160px;
+            height: 160px;
+            background: radial-gradient(
+                circle, rgba(251, 243, 227, .9), transparent 70%
+            );
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        /* The rotating shimmer — a real element, not a pseudo-element,
+           since ::before/::after above are already spoken for by the two
+           static glow blobs. A slow-spinning conic gradient sits behind
+           the title/subtitle (z-index below them, clipped by the card's
+           own overflow:hidden) for a genuinely moving light sweep instead
+           of a static glow. */
+        .brand-header-shimmer {
+            position: absolute;
+            inset: -60%;
+            background: conic-gradient(
+                from 0deg,
+                transparent 0deg,
+                rgba(240, 42, 160, .22) 45deg,
+                transparent 110deg,
+                transparent 220deg,
+                rgba(255, 110, 199, .18) 285deg,
+                transparent 360deg
+            );
+            animation: brandShimmerSpin 14s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+        @keyframes brandShimmerSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .brand-header-greet {
+            position: relative;
+            z-index: 1;
+            font-size: 15px;
+            font-weight: 800;
+            color: #F02AA0;
+            margin-bottom: 6px;
+        }
+        .brand-header-title {
+            position: relative;
+            z-index: 1;
+            font-size: 32px;
+            font-weight: 900;
+            color: #2B2130;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            letter-spacing: -.02em;
+            line-height: 1.15;
+            flex-wrap: wrap;
+        }
+        .brand-header-title .brand-accent {
+            background: linear-gradient(
+                100deg,
+                #F02AA0 30%,
+                #FFC1E9 45%,
+                #FF6EC7 55%,
+                #F02AA0 70%
+            );
+            background-size: 250% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: brandTextShimmer 4s ease-in-out infinite;
+        }
+        @keyframes brandTextShimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -100% 0; }
+        }
+        .brand-star {
+            font-size: 26px;
+            filter: drop-shadow(0 2px 6px rgba(240, 42, 160, .35));
+        }
+        .brand-header-sub {
+            position: relative;
+            z-index: 1;
+            margin-top: 9px;
+            font-size: 14.5px;
+            color: #6B5B66;
+            max-width: 640px;
+        }
+        .brand-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 4px 0 10px 0;
+        }
+        .brand-step-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #F02AA0, #FF6EC7);
+            color: #fff;
+            font-weight: 900;
+            font-size: 14px;
+            box-shadow: 0 4px 10px rgba(240, 42, 160, .35);
+            flex-shrink: 0;
+        }
+        .brand-step-text {
+            font-size: 22px;
+            font-weight: 800;
+            color: #2B2130;
+        }
+        .brand-logo-img {
+            display: block;
+            height: 76px;
+            width: auto;
+            max-width: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 10px rgba(240, 42, 160, .25));
+        }
+        .brand-logo-row {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+        .brand-wordmark-text {
+            font-family: 'Baloo 2', sans-serif;
+            font-weight: 800;
+            font-size: 28px;
+            line-height: 1.05;
+            color: #F02AA0;
+            letter-spacing: .01em;
+            text-shadow: 0 2px 0 rgba(255, 255, 255, .55);
+        }
+
+        /* Sidebar */
+        section[data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #FFFFFF 0%, #FBF3E3 100%);
+            border-right: 1px solid var(--depop-border);
+        }
+        .depop-sidebar-logo-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 4px 18px 4px;
+        }
+        .depop-sidebar-logo-img {
+            height: 32px;
+            width: auto;
+            object-fit: contain;
+        }
+        .depop-sidebar-wordmark {
+            font-family: 'Baloo 2', sans-serif;
+            font-weight: 800;
+            font-size: 16px;
+            color: #F02AA0;
+        }
+        .depop-nav-soon-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-bottom: 2px;
+            color: var(--depop-plum-muted);
+            font-size: 13.5px;
+            font-weight: 600;
+            cursor: not-allowed;
+            opacity: .62;
+        }
+        .depop-nav-soon-pill {
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: .03em;
+            background: rgba(43, 33, 48, .08);
+            color: var(--depop-plum-muted);
+            padding: 2px 7px;
+            border-radius: 999px;
+            flex-shrink: 0;
+        }
+        .depop-nav-divider {
+            height: 1px;
+            background: var(--depop-border);
+            margin: 12px 0 10px 0;
+        }
+        .depop-upgrade-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 14px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(240, 42, 160, .10), rgba(255, 193, 233, .25));
+            border: 1px dashed rgba(240, 42, 160, .35);
+            color: #F02AA0;
+            font-weight: 700;
+            font-size: 13px;
+            opacity: .8;
+            cursor: not-allowed;
+        }
+
+        /* Workflow stepper */
+        .depop-stepper-card {
+            background: #FFFFFF;
+            border: 1px solid var(--depop-border);
+            border-radius: var(--depop-radius-md);
+            box-shadow: var(--depop-shadow-card);
+            padding: 16px 20px;
+            margin-bottom: 16px;
+        }
+        .depop-stepper {
+            display: flex;
+            align-items: center;
+        }
+        .depop-stepper-seg {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            flex: 0 0 auto;
+        }
+        .depop-stepper-dot {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+        .depop-stepper-dot.done,
+        .depop-stepper-dot.active {
+            background: linear-gradient(135deg, #F02AA0, #FF6EC7);
+            color: #fff;
+        }
+        .depop-stepper-dot.active {
+            box-shadow: 0 0 0 4px rgba(240, 42, 160, .18);
+        }
+        .depop-stepper-dot.upcoming {
+            background: rgba(43, 33, 48, .08);
+            color: var(--depop-plum-muted);
+        }
+        .depop-stepper-label {
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .depop-stepper-label.active {
+            color: var(--depop-plum);
+        }
+        .depop-stepper-label.upcoming {
+            color: var(--depop-plum-muted);
+        }
+        .depop-stepper-line {
+            flex: 1 1 auto;
+            height: 2px;
+            background: rgba(43, 33, 48, .12);
+            margin: 0 14px;
+        }
+        .depop-stepper-line.done {
+            background: linear-gradient(90deg, #F02AA0, #FF6EC7);
+        }
+
+        /* Session stats */
+        .depop-stats-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+        .depop-stat-tile {
+            flex: 1;
+            min-width: 130px;
+            background: #FFFFFF;
+            border: 1px solid var(--depop-border);
+            border-radius: var(--depop-radius-md);
+            padding: 12px 16px;
+            box-shadow: var(--depop-shadow-card);
+        }
+        .depop-stat-num {
+            font-size: 22px;
+            font-weight: 900;
+            color: #F02AA0;
+        }
+        .depop-stat-label {
+            font-size: 12px;
+            color: var(--depop-plum-muted);
+            font-weight: 600;
+            margin-top: 2px;
+        }
+
+        /* Shared card/button tokens for the rest of the app */
+        .depop-card {
+            background: #FFFFFF;
+            border: 1px solid var(--depop-border);
+            border-radius: var(--depop-radius-md);
+            box-shadow: var(--depop-shadow-card);
+        }
+        div[data-testid="stButton"] button[kind="primary"] {
+            background: linear-gradient(135deg, #F02AA0, #FF6EC7) !important;
+            border: none !important;
+            box-shadow: 0 4px 12px rgba(240, 42, 160, .30) !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+_inject_global_brand_css()
+
+
+def _brand_step_header(number, text):
+    st.markdown(
+        f"""
+        <div class="brand-step">
+            <span class="brand-step-num">{number}</span>
+            <span class="brand-step-text">{html.escape(text)}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _current_workflow_stage():
+    if st.session_state.get("show_final_qa"):
+        return "publish"
+    if st.session_state.get("generated_listings"):
+        return "review"
+    return "upload"
+
+
+def _render_workflow_stepper(current_stage):
+    stages = [
+        ("upload", "Upload"),
+        ("generate", "AI Generation"),
+        ("review", "Review & Edit"),
+        ("publish", "Publish"),
+    ]
+    order = [key for key, _ in stages]
+    current_index = order.index(current_stage) if current_stage in order else 0
+
+    pieces = []
+    for index, (_key, label) in enumerate(stages):
+        if index < current_index:
+            dot_class, label_class, dot_content = "done", "active", "✓"
+        elif index == current_index:
+            dot_class, label_class, dot_content = "active", "active", str(index + 1)
+        else:
+            dot_class, label_class, dot_content = "upcoming", "upcoming", str(index + 1)
+
+        pieces.append(
+            f'<div class="depop-stepper-seg">'
+            f'<span class="depop-stepper-dot {dot_class}">{dot_content}</span>'
+            f'<span class="depop-stepper-label {label_class}">{html.escape(label)}</span>'
+            f'</div>'
+        )
+        if index < len(stages) - 1:
+            line_class = "done" if index < current_index else ""
+            pieces.append(f'<div class="depop-stepper-line {line_class}"></div>')
+
+    st.markdown(
+        f'<div class="depop-stepper-card"><div class="depop-stepper">{"".join(pieces)}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _render_hero_header(current_stage):
+    st.markdown(
+        """
+        <div class="brand-header">
+            <div class="brand-header-shimmer"></div>
+            <div class="brand-header-greet">Hey Brant! 👋</div>
+            <div class="brand-header-title">
+                Let's create <span class="brand-accent">amazing</span> listings.
+            </div>
+            <div class="brand-header-sub">
+                Upload clothing photos and let AI group, generate, QA, and
+                prepare listings for Shopify ✨
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    _render_workflow_stepper(current_stage)
+
+
+def _render_session_stats_panel():
+    slots = st.session_state.get("manual_upload_slots", [])
+    groups = st.session_state.get("manual_groups", [])
+    generated = st.session_state.get("generated_listings", [])
+
+    in_progress_items = sum(1 for slot in slots if slot.get("paths"))
+    in_progress_photos = sum(len(slot.get("paths", [])) for slot in slots)
+    confirmed_photos = sum(len(group.get("paths", [])) for group in groups)
+
+    items_uploaded = len(groups) + in_progress_items
+    photos_uploaded = confirmed_photos + in_progress_photos
+
+    st.markdown(
+        f"""
+        <div class="depop-stats-row">
+            <div class="depop-stat-tile">
+                <div class="depop-stat-num">{items_uploaded}</div>
+                <div class="depop-stat-label">Items Uploaded</div>
+            </div>
+            <div class="depop-stat-tile">
+                <div class="depop-stat-num">{photos_uploaded}</div>
+                <div class="depop-stat-label">Photos Uploaded</div>
+            </div>
+            <div class="depop-stat-tile">
+                <div class="depop-stat-num">{len(generated)}</div>
+                <div class="depop-stat-label">Listings Generated</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_sidebar_nav():
+    with st.sidebar:
+        logo_url = _brand_logo_data_url()
+        st.markdown(
+            f"""
+            <div class="depop-sidebar-logo-row">
+                {f'<img class="depop-sidebar-logo-img" src="{logo_url}" alt="">' if logo_url else '<span style="font-size:20px;">✨</span>'}
+                <span class="depop-sidebar-wordmark">Womens Y2K</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        current = st.session_state.get("main_nav_control", _NAV_GENERATOR)
+
+        if st.button(
+            "🧵  AI Listing Generator",
+            key="sidebar_nav_generator",
+            width="stretch",
+            type="primary" if current == _NAV_GENERATOR else "secondary",
+        ):
+            if current != _NAV_GENERATOR:
+                st.session_state["main_nav_control"] = _NAV_GENERATOR
+                st.rerun()
+
+        if st.button(
+            "📋  AI Description Generator",
+            key="sidebar_nav_descgen",
+            width="stretch",
+            type="primary" if current == _NAV_DESCGEN else "secondary",
+        ):
+            if current != _NAV_DESCGEN:
+                st.session_state["main_nav_control"] = _NAV_DESCGEN
+                st.rerun()
+
+        st.markdown('<div class="depop-nav-divider"></div>', unsafe_allow_html=True)
+
+        soon_items = [
+            ("📊", "Dashboard"), ("🛍️", "My Listings"), ("🧩", "Templates"),
+            ("🕘", "History"), ("📈", "Analytics"), ("❤️", "Favorites"),
+            ("⚙️", "Settings"),
+        ]
+        soon_rows = "".join(
+            f'<div class="depop-nav-soon-row"><span>{icon} {label}</span>'
+            f'<span class="depop-nav-soon-pill">Soon</span></div>'
+            for icon, label in soon_items
+        )
+        st.markdown(soon_rows, unsafe_allow_html=True)
+
+        st.markdown(
+            '<div class="depop-upgrade-badge">🔒 Upgrade</div>',
+            unsafe_allow_html=True,
+        )
+
+
+# ============================================================
 # PAGE ROUTER — navigation between "AI Listing Generator" (this
 # existing app, everything below is completely unchanged) and
 # "AI Description Generator" (a new, entirely separate module for
@@ -694,29 +1248,27 @@ st.set_page_config(
 # silently failed to reopen it — no console error, popover body just
 # never appears again. Root cause looks like a real Streamlit quirk
 # in popover-stays-open-across-rerun bookkeeping when the very next
-# script run is truncated early by st.stop(). st.segmented_control
-# has no such open/close container state to get out of sync — its
-# own selection value is the source of truth and needs no popover at
-# all, so it doesn't hit this bug. Traded the literal "hidden behind
-# a hamburger icon" look for something confirmed to actually work.
+# script run is truncated early by st.stop(). Plain sidebar buttons
+# have no such open/close container state to get out of sync — the
+# session_state value they set is the source of truth and needs no
+# popover/segmented-control at all, so nav lives in a real st.sidebar
+# now instead (also matches the SaaS-dashboard look this app is going
+# for, and gives room for the placeholder "Soon" links).
 # ============================================================
 _NAV_GENERATOR = "🧵 AI Listing Generator"
 _NAV_DESCGEN = "📋 AI Description Generator"
 
 st.session_state.setdefault("main_nav_control", _NAV_GENERATOR)
 
-st.segmented_control(
-    "Navigate",
-    options=[_NAV_GENERATOR, _NAV_DESCGEN],
-    key="main_nav_control",
-    required=True,
-    label_visibility="collapsed",
-)
+_render_sidebar_nav()
 
 if st.session_state["main_nav_control"] == _NAV_DESCGEN:
     from description_generator import render_description_generator
     render_description_generator()
     st.stop()
+
+_render_hero_header(_current_workflow_stage())
+_render_session_stats_panel()
 
 
 # ============================================================
@@ -1764,6 +2316,682 @@ else:
     item_drop_card = None
 
 
+# ============================================================
+# UPLOAD SLOT DECK — the 10-item "Upload Your Items" grid.
+# One component renders all 10 cards (same "many cards in one
+# instance" pattern as INVENTORY_DECK below), each showing a large
+# main photo + up to 6 thumbnails once photos exist, or a blank-state
+# drop zone + "+" placeholders before any exist. Click-to-browse and
+# drag-reorder reuse the exact prepareFile()/pointer+FLIP mechanics
+# already proven in ITEM_CARD_JS above — adapted, not reinvented.
+# ============================================================
+
+UPLOAD_SLOT_DECK_HTML = """
+<div class="slot-deck" data-deck></div>
+"""
+
+UPLOAD_SLOT_DECK_CSS = """
+.slot-deck {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@media (max-width: 1100px) {
+  .slot-deck { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 700px) {
+  .slot-deck { grid-template-columns: repeat(2, 1fr); }
+}
+
+.slot-card {
+  position: relative;
+  background: #FFFFFF;
+  border: 1px solid rgba(43, 33, 48, .14);
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
+  color: #2B2130;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.slot-card.file-over {
+  border-color: #F02AA0;
+  box-shadow: 0 0 0 3px rgba(240, 42, 160, .18), 0 10px 24px rgba(240, 42, 160, .18);
+}
+.slot-card.uploading .slot-upload-overlay { display: flex; }
+.slot-upload-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, .90);
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #F02AA0;
+}
+.slot-upload-overlay .spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid rgba(240, 42, 160, .18);
+  border-top-color: #F02AA0;
+  border-radius: 50%;
+  animation: slotSpin .7s linear infinite;
+}
+@keyframes slotSpin { to { transform: rotate(360deg); } }
+
+.slot-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.slot-badge {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  background: linear-gradient(135deg, #F02AA0, #FF6EC7);
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.slot-meta { font-size: 11px; color: #6B5B66; font-weight: 600; flex: 1; }
+.slot-clear-btn {
+  border: none;
+  background: transparent;
+  color: #6B5B66;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.slot-clear-btn:hover { background: rgba(43, 33, 48, .08); color: #2B2130; }
+
+.slot-body { display: flex; gap: 8px; }
+
+.slot-main-drop {
+  flex: 0 0 96px;
+  height: 148px;
+  border: 1.5px dashed rgba(240, 42, 160, .35);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  cursor: pointer;
+  background: linear-gradient(160deg, rgba(255, 193, 233, .16), rgba(251, 243, 227, .5));
+  transition: border-color .12s ease, background .12s ease;
+  padding: 6px;
+}
+.slot-main-drop:hover {
+  border-color: #F02AA0;
+  background: linear-gradient(160deg, rgba(255, 193, 233, .30), rgba(251, 243, 227, .7));
+}
+.slot-main-drop-icon { font-size: 16px; color: #F02AA0; }
+.slot-main-drop-title { font-size: 10.5px; font-weight: 800; color: #2B2130; line-height: 1.2; }
+.slot-main-drop-sub { font-size: 9px; color: #6B5B66; line-height: 1.2; }
+
+.slot-main-photo {
+  position: relative;
+  flex: 0 0 96px;
+  height: 148px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(43, 33, 48, .12);
+  background: #f3ede6;
+}
+.slot-main-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.slot-main-badge {
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  background: rgba(43, 33, 48, .82);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+.slot-thumb-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 46px;
+  gap: 5px;
+}
+.slot-thumb {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(43, 33, 48, .12);
+  background: #f3ede6;
+  cursor: pointer;
+  touch-action: none;
+}
+.slot-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.slot-thumb.pointer-dragging { z-index: 9999; }
+.slot-thumb.reorder-placeholder {
+  background: rgba(240, 42, 160, .10);
+  border: 1.5px dashed rgba(240, 42, 160, .4);
+}
+.slot-thumb-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(43, 33, 48, .72);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.slot-thumb:hover .slot-thumb-remove { opacity: 1; }
+.slot-thumb-placeholder {
+  border-radius: 8px;
+  border: 1.5px dashed rgba(43, 33, 48, .18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(43, 33, 48, .3);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(251, 243, 227, .4);
+  transition: border-color .12s ease, color .12s ease;
+}
+.slot-thumb-placeholder:hover {
+  border-color: rgba(240, 42, 160, .4);
+  color: rgba(240, 42, 160, .6);
+}
+
+.slot-footer {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.slot-vintage-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6B5B66;
+  cursor: pointer;
+}
+.slot-vintage-label input { cursor: pointer; }
+"""
+
+UPLOAD_SLOT_DECK_JS = """
+export default function(component) {
+  const { data, parentElement, setTriggerValue } = component;
+  const deckEl = parentElement.querySelector("[data-deck]");
+
+  function emit(action) {
+    setTriggerValue("action", action);
+  }
+
+  function isExternalFileDrag(event) {
+    return !!(
+      event.dataTransfer &&
+      Array.from(event.dataTransfer.types || []).includes("Files")
+    );
+  }
+
+  async function prepareFile(file) {
+    const bitmap = await createImageBitmap(file);
+    const MAX_SIDE = 1800;
+    const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+    return {
+      name: file.name.replace(/\\.[^.]+$/, "") + ".jpg",
+      type: "image/jpeg",
+      data: dataUrl
+    };
+  }
+
+  async function uploadFiles(card, slotIndex, files) {
+    const valid = Array.from(files).filter(
+      file => /\\.(jpe?g|png|webp)$/i.test(file.name)
+    );
+    if (!valid.length) return;
+    card.classList.add("uploading");
+    try {
+      const payload = [];
+      for (const file of valid) payload.push(await prepareFile(file));
+      emit({ type: "add_files", slot_index: slotIndex, files: payload });
+    } catch (error) {
+      console.error("Upload failed", error);
+      card.classList.remove("uploading");
+    }
+  }
+
+  function attachCardDropZone(card, slotIndex) {
+    let depth = 0;
+    card.addEventListener("dragenter", (event) => {
+      if (!isExternalFileDrag(event)) return;
+      event.preventDefault();
+      depth += 1;
+      card.classList.add("file-over");
+    });
+    card.addEventListener("dragover", (event) => {
+      if (!isExternalFileDrag(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+      card.classList.add("file-over");
+    });
+    card.addEventListener("dragleave", (event) => {
+      if (!isExternalFileDrag(event)) return;
+      depth -= 1;
+      if (depth <= 0) {
+        depth = 0;
+        card.classList.remove("file-over");
+      }
+    });
+    card.addEventListener("drop", async (event) => {
+      if (!isExternalFileDrag(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      depth = 0;
+      card.classList.remove("file-over");
+      await uploadFiles(card, slotIndex, event.dataTransfer.files || []);
+    });
+  }
+
+  // Pointer + FLIP drag-reorder among a card's own thumbnails — the
+  // exact technique already proven in ITEM_CARD_JS's photo-card
+  // reorder, scoped here to one card's own .slot-thumb-grid only (no
+  // cross-card dragging; that stays the item editor's job later).
+  function attachThumbDrag(thumbCard, grid, slotIndex) {
+    let pointerDrag = null;
+
+    function gridThumbs() {
+      return Array.from(grid.querySelectorAll(".slot-thumb"))
+        .filter(el => el !== pointerDrag?.card && !el.classList.contains("reorder-placeholder"));
+    }
+
+    function flip(mutate) {
+      const cards = gridThumbs();
+      const first = new Map(cards.map(el => [el, el.getBoundingClientRect()]));
+      mutate();
+      cards.forEach(el => {
+        const a = first.get(el);
+        const b = el.getBoundingClientRect();
+        const dx = a.left - b.left;
+        const dy = a.top - b.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        el.style.transition = "none";
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+        requestAnimationFrame(() => {
+          el.style.transition = "transform 180ms cubic-bezier(.2,.8,.2,1)";
+          el.style.transform = "translate(0,0)";
+        });
+      });
+    }
+
+    function movePlaceholder(event) {
+      const drag = pointerDrag;
+      if (!drag?.placeholder) return;
+      const cards = gridThumbs();
+      if (!cards.length) return;
+
+      let closest = null;
+      let best = Infinity;
+      for (const el of cards) {
+        const r = el.getBoundingClientRect();
+        const d = Math.hypot(
+          event.clientX - (r.left + r.width / 2),
+          event.clientY - (r.top + r.height / 2)
+        );
+        if (d < best) {
+          best = d;
+          closest = { el, r };
+        }
+      }
+      if (!closest) return;
+
+      const r = closest.r;
+      const before = event.clientX < r.left + r.width / 2;
+      const current = Array.from(grid.children).indexOf(drag.placeholder);
+      const target = Array.from(grid.children).indexOf(closest.el);
+      const desired = before ? target : target + 1;
+
+      if (desired === current || desired === current + 1) return;
+
+      flip(() => {
+        if (before) grid.insertBefore(drag.placeholder, closest.el);
+        else grid.insertBefore(drag.placeholder, closest.el.nextSibling);
+      });
+    }
+
+    function startRealDrag(event) {
+      const drag = pointerDrag;
+      if (!drag || drag.active) return;
+      drag.active = true;
+
+      const rect = drag.card.getBoundingClientRect();
+      const ph = document.createElement("div");
+      ph.className = "slot-thumb reorder-placeholder";
+      ph.style.width = rect.width + "px";
+      ph.style.height = rect.height + "px";
+      drag.placeholder = ph;
+      grid.insertBefore(ph, drag.card);
+
+      drag.card.classList.add("pointer-dragging");
+      drag.card.style.position = "fixed";
+      drag.card.style.left = (event.clientX - drag.offsetX) + "px";
+      drag.card.style.top = (event.clientY - drag.offsetY) + "px";
+      drag.card.style.width = rect.width + "px";
+      drag.card.style.height = rect.height + "px";
+      drag.card.style.margin = "0";
+      drag.card.style.transition = "none";
+      drag.card.style.transform = "scale(1.08) rotate(1.2deg)";
+      drag.card.style.pointerEvents = "none";
+      drag.card.style.zIndex = "99999";
+    }
+
+    function pointerMove(event) {
+      const drag = pointerDrag;
+      if (!drag || drag.card !== thumbCard) return;
+
+      const distance = Math.hypot(
+        event.clientX - drag.startX,
+        event.clientY - drag.startY
+      );
+      if (!drag.active) {
+        if (distance < 6) return;
+        startRealDrag(event);
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      drag.card.style.left = (event.clientX - drag.offsetX) + "px";
+      drag.card.style.top = (event.clientY - drag.offsetY) + "px";
+      movePlaceholder(event);
+    }
+
+    function pointerUp(event) {
+      const drag = pointerDrag;
+      if (!drag || drag.card !== thumbCard) return;
+      pointerDrag = null;
+      if (!drag.active) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (drag.placeholder?.parentNode) {
+        drag.placeholder.parentNode.insertBefore(thumbCard, drag.placeholder);
+        drag.placeholder.remove();
+      }
+
+      thumbCard.classList.remove("pointer-dragging");
+      thumbCard.style.position = "";
+      thumbCard.style.left = "";
+      thumbCard.style.top = "";
+      thumbCard.style.width = "";
+      thumbCard.style.height = "";
+      thumbCard.style.margin = "";
+      thumbCard.style.transition = "";
+      thumbCard.style.transform = "";
+      thumbCard.style.pointerEvents = "";
+      thumbCard.style.zIndex = "";
+
+      const ids = Array.from(grid.querySelectorAll(".slot-thumb"))
+        .map(el => String(el.dataset.id));
+      emit({ type: "reorder", slot_index: slotIndex, ids });
+
+      thumbCard.dataset.justDragged = "true";
+      setTimeout(() => delete thumbCard.dataset.justDragged, 300);
+    }
+
+    thumbCard.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      if (event.target.closest(".slot-thumb-remove")) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = thumbCard.getBoundingClientRect();
+      pointerDrag = {
+        card: thumbCard,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top,
+        active: false,
+        placeholder: null
+      };
+
+      try { thumbCard.setPointerCapture(event.pointerId); } catch {}
+    });
+    thumbCard.addEventListener("pointermove", pointerMove);
+    thumbCard.addEventListener("pointerup", pointerUp);
+    thumbCard.addEventListener("pointercancel", pointerUp);
+  }
+
+  function render() {
+    let slots = [];
+    try {
+      slots = JSON.parse(data?.slots_json || "[]");
+      if (!Array.isArray(slots)) slots = [];
+    } catch {
+      slots = [];
+    }
+
+    deckEl.innerHTML = "";
+
+    slots.forEach((slot) => {
+      const slotIndex = Number(slot.slot_index);
+      const itemNumber = Number(slot.item_number);
+      const photos = Array.isArray(slot.photos) ? slot.photos : [];
+
+      const card = document.createElement("div");
+      card.className = "slot-card";
+      card.dataset.slotIndex = String(slotIndex);
+
+      const overlay = document.createElement("div");
+      overlay.className = "slot-upload-overlay";
+      overlay.innerHTML = '<div class="spinner"></div><div>Uploading…</div>';
+      card.appendChild(overlay);
+
+      const header = document.createElement("div");
+      header.className = "slot-header";
+      const badge = document.createElement("span");
+      badge.className = "slot-badge";
+      badge.textContent = "ITEM " + itemNumber;
+      const meta = document.createElement("span");
+      meta.className = "slot-meta";
+      meta.textContent = photos.length + (photos.length === 1 ? " photo" : " photos");
+      const clearBtn = document.createElement("button");
+      clearBtn.type = "button";
+      clearBtn.className = "slot-clear-btn";
+      clearBtn.title = "Clear this item";
+      clearBtn.textContent = "⋯";
+      clearBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!photos.length) return;
+        emit({ type: "clear_item", slot_index: slotIndex });
+      });
+      header.appendChild(badge);
+      header.appendChild(meta);
+      header.appendChild(clearBtn);
+      card.appendChild(header);
+
+      const fileInput = document.createElement("input");
+      fileInput.type = "file";
+      fileInput.multiple = true;
+      fileInput.accept = "image/jpeg,image/png,image/webp";
+      fileInput.style.display = "none";
+      fileInput.addEventListener("change", async () => {
+        const files = Array.from(fileInput.files || []);
+        fileInput.value = "";
+        if (!files.length) return;
+        await uploadFiles(card, slotIndex, files);
+      });
+      card.appendChild(fileInput);
+
+      const body = document.createElement("div");
+      body.className = "slot-body";
+
+      if (!photos.length) {
+        const mainDrop = document.createElement("div");
+        mainDrop.className = "slot-main-drop";
+        mainDrop.innerHTML =
+          '<div class="slot-main-drop-icon">⬆</div>' +
+          '<div class="slot-main-drop-title">Add Main Photo</div>' +
+          '<div class="slot-main-drop-sub">Drag &amp; drop or click to upload</div>';
+        mainDrop.addEventListener("click", () => fileInput.click());
+        body.appendChild(mainDrop);
+
+        const grid = document.createElement("div");
+        grid.className = "slot-thumb-grid";
+        for (let i = 0; i < 6; i++) {
+          const ph = document.createElement("div");
+          ph.className = "slot-thumb-placeholder";
+          ph.textContent = "+";
+          ph.addEventListener("click", () => fileInput.click());
+          grid.appendChild(ph);
+        }
+        body.appendChild(grid);
+      } else {
+        const mainPhoto = document.createElement("div");
+        mainPhoto.className = "slot-main-photo";
+        const mainImg = document.createElement("img");
+        mainImg.src = photos[0].src || "";
+        mainImg.alt = photos[0].name || "Main photo";
+        const mainBadge = document.createElement("div");
+        mainBadge.className = "slot-main-badge";
+        mainBadge.textContent = "MAIN PHOTO";
+        mainPhoto.appendChild(mainImg);
+        mainPhoto.appendChild(mainBadge);
+        body.appendChild(mainPhoto);
+
+        const grid = document.createElement("div");
+        grid.className = "slot-thumb-grid";
+
+        const thumbs = photos.slice(1, 7);
+        thumbs.forEach((photo) => {
+          const thumbCard = document.createElement("div");
+          thumbCard.className = "slot-thumb";
+          thumbCard.dataset.id = String(photo.id);
+
+          const img = document.createElement("img");
+          img.src = photo.src || "";
+          img.alt = photo.name || "";
+          img.draggable = false;
+          thumbCard.appendChild(img);
+
+          const removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.className = "slot-thumb-remove";
+          removeBtn.title = "Remove photo";
+          removeBtn.textContent = "×";
+          removeBtn.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            emit({ type: "remove", slot_index: slotIndex, id: String(photo.id) });
+          });
+          thumbCard.appendChild(removeBtn);
+
+          thumbCard.addEventListener("click", (event) => {
+            if (event.target.closest(".slot-thumb-remove")) return;
+            if (thumbCard.dataset.justDragged === "true") {
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
+            emit({ type: "promote_main", slot_index: slotIndex, id: String(photo.id) });
+          });
+
+          attachThumbDrag(thumbCard, grid, slotIndex);
+
+          grid.appendChild(thumbCard);
+        });
+
+        const remaining = 6 - thumbs.length;
+        for (let i = 0; i < remaining; i++) {
+          const ph = document.createElement("div");
+          ph.className = "slot-thumb-placeholder";
+          ph.textContent = "+";
+          ph.addEventListener("click", () => fileInput.click());
+          grid.appendChild(ph);
+        }
+
+        body.appendChild(grid);
+      }
+
+      card.appendChild(body);
+
+      const footer = document.createElement("div");
+      footer.className = "slot-footer";
+      const label = document.createElement("label");
+      label.className = "slot-vintage-label";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = !!slot.vintage;
+      checkbox.addEventListener("change", () => {
+        emit({ type: "vintage_toggle", slot_index: slotIndex, value: checkbox.checked });
+      });
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(" Vintage"));
+      footer.appendChild(label);
+      card.appendChild(footer);
+
+      attachCardDropZone(card, slotIndex);
+
+      deckEl.appendChild(card);
+    });
+  }
+
+  render();
+
+  return () => {
+    // No timers or global listeners to clean up.
+  };
+}
+"""
+
+if STREAMLIT_V2_AVAILABLE:
+    upload_slot_deck = _streamlit_v2_component(
+        "upload_slot_deck_v1",
+        html=UPLOAD_SLOT_DECK_HTML,
+        css=UPLOAD_SLOT_DECK_CSS,
+        js=UPLOAD_SLOT_DECK_JS,
+        isolate_styles=True,
+    )
+else:
+    upload_slot_deck = None
+
 
 # ============================================================
 # INVENTORY DECK + REVIEW CAROUSEL
@@ -2534,6 +3762,126 @@ def handle_item_component_action(
     return False
 
 
+def handle_upload_slot_action(slots, action):
+    """
+    Apply an action emitted by the new upload_slot_deck component.
+
+    Operates only on st.session_state["manual_upload_slots"] (the
+    pre-confirm 10-slot deck) — NEVER on manual_groups. Those two are
+    intentionally separate state; manual_sync_bulk_paths() only reads
+    manual_groups and must not be called from here.
+    """
+    if not isinstance(action, dict):
+        return False
+
+    action_type = action.get("action")
+
+    try:
+        slot_index = int(action.get("slot_index", -1))
+    except (TypeError, ValueError):
+        return False
+
+    if slot_index < 0 or slot_index >= len(slots):
+        return False
+
+    slot = slots[slot_index]
+
+    if action_type == "add_files":
+        saved_paths = save_component_files(
+            action.get("files", []),
+            f"slot_{slot_index + 1}",
+        )
+
+        if not saved_paths:
+            return False
+
+        existing = {
+            str(Path(path).resolve())
+            for path in slot.get("paths", [])
+        }
+
+        for path in saved_paths:
+            key = str(Path(path).resolve())
+            if key in existing:
+                continue
+            slot.setdefault("paths", []).append(path)
+            existing.add(key)
+
+        return True
+
+    if action_type == "promote_main":
+        photo_id = str(action.get("id", ""))
+        paths = slot.get("paths", [])
+
+        for index, path in enumerate(paths):
+            if str(Path(path).resolve()) != photo_id:
+                continue
+            if index == 0:
+                return False
+            paths.pop(index)
+            paths.insert(0, path)
+            slot["paths"] = paths
+            return True
+
+        return False
+
+    if action_type == "reorder":
+        ids = action.get("ids", [])
+        if not isinstance(ids, list):
+            return False
+
+        current = {
+            str(Path(path).resolve()): path
+            for path in slot.get("paths", [])
+        }
+
+        # A reorder from the component only ever carries the thumbnail
+        # ids (everything except the main photo at index 0) — validate
+        # it's an exact permutation of exactly that subset, then splice
+        # it back in after the untouched main photo.
+        main_path = slot.get("paths", [None])[0] if slot.get("paths") else None
+        thumb_ids = {
+            key for key in current
+            if main_path is None or key != str(Path(main_path).resolve())
+        }
+
+        if set(ids) != thumb_ids or len(ids) != len(thumb_ids):
+            return False
+
+        reordered = [current[path_id] for path_id in ids]
+        slot["paths"] = ([main_path] if main_path is not None else []) + reordered
+        return True
+
+    if action_type == "remove":
+        photo_id = str(action.get("id", ""))
+        old_paths = slot.get("paths", [])
+
+        new_paths = [
+            path for path in old_paths
+            if str(Path(path).resolve()) != photo_id
+        ]
+
+        if len(new_paths) == len(old_paths):
+            return False
+
+        slot["paths"] = new_paths
+        return True
+
+    if action_type == "vintage_toggle":
+        slot["vintage"] = bool(action.get("value", False))
+        return True
+
+    if action_type == "clear_item":
+        slots[slot_index] = {
+            "slot": slot_index,
+            "paths": [],
+            "signature": [],
+            "vintage": False,
+        }
+        return True
+
+    return False
+
 
 # ============================================================
 # HELPERS
@@ -2598,368 +3946,24 @@ def clear_generated_item_widget_state(count):
             st.session_state.pop(key, None)
 
 
-# ============================================================
-# PAGE
-# ============================================================
+def validate_groups(groups):
+    total_photos = len(st.session_state.get("bulk_paths", []))
+    expected = set(range(1, total_photos + 1))
 
-@st.cache_data(show_spinner=False)
-def _brand_logo_data_url():
-    """Base64-embeds the brand logo (background already removed,
-    resized/palette-quantized to ~12KB) so the header can use it as a
-    plain <img src="data:..."> with no separate file request — cached
-    so the file isn't re-read/re-encoded on every rerun (Streamlit
-    reruns this whole script on every interaction)."""
-    path = Path(__file__).with_name("logo_transparent.png")
-    if not path.exists():
-        return ""
-    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
+    seen = []
+    for group in groups:
+        seen.extend(group.get("photo_numbers", []))
 
+    duplicates = sorted({number for number in seen if seen.count(number) > 1})
+    missing = sorted(expected - set(seen))
+    invalid = sorted({number for number in seen if number not in expected})
 
-st.markdown(
-    """
-    <style>
-    .brand-header {
-        background: linear-gradient(135deg, #FBF3E3 0%, #FFFFFF 65%);
-        border: 1px solid rgba(240, 42, 160, .16);
-        border-radius: 22px;
-        padding: 30px 34px;
-        margin-bottom: 20px;
-        box-shadow: 0 12px 32px rgba(240, 42, 160, .10);
-        position: relative;
-        overflow: hidden;
+    return {
+        "valid": not duplicates and not missing and not invalid,
+        "duplicates": duplicates,
+        "missing": missing,
+        "invalid": invalid,
     }
-    .brand-header::before {
-        content: "";
-        position: absolute;
-        top: -50px;
-        right: -50px;
-        width: 190px;
-        height: 190px;
-        background: radial-gradient(
-            circle, rgba(240, 42, 160, .16), transparent 70%
-        );
-        border-radius: 50%;
-        pointer-events: none;
-    }
-    .brand-header::after {
-        content: "";
-        position: absolute;
-        bottom: -60px;
-        left: 20%;
-        width: 160px;
-        height: 160px;
-        background: radial-gradient(
-            circle, rgba(251, 243, 227, .9), transparent 70%
-        );
-        border-radius: 50%;
-        pointer-events: none;
-    }
-    /* The rotating shimmer — a real element, not a pseudo-element,
-       since ::before/::after above are already spoken for by the two
-       static glow blobs. A slow-spinning conic gradient sits behind
-       the title/subtitle (z-index below them, clipped by the card's
-       own overflow:hidden) for a genuinely moving light sweep instead
-       of a static glow. */
-    .brand-header-shimmer {
-        position: absolute;
-        inset: -60%;
-        background: conic-gradient(
-            from 0deg,
-            transparent 0deg,
-            rgba(240, 42, 160, .22) 45deg,
-            transparent 110deg,
-            transparent 220deg,
-            rgba(255, 110, 199, .18) 285deg,
-            transparent 360deg
-        );
-        animation: brandShimmerSpin 14s linear infinite;
-        pointer-events: none;
-        z-index: 0;
-    }
-    @keyframes brandShimmerSpin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-    .brand-header-title {
-        position: relative;
-        z-index: 1;
-        font-size: 36px;
-        font-weight: 900;
-        color: #2B2130;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        letter-spacing: -.02em;
-        line-height: 1.15;
-    }
-    .brand-header-title .brand-accent {
-        background: linear-gradient(
-            100deg,
-            #F02AA0 30%,
-            #FFC1E9 45%,
-            #FF6EC7 55%,
-            #F02AA0 70%
-        );
-        background-size: 250% 100%;
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-        animation: brandTextShimmer 4s ease-in-out infinite;
-    }
-    @keyframes brandTextShimmer {
-        0% { background-position: 200% 0; }
-        100% { background-position: -100% 0; }
-    }
-    .brand-star {
-        font-size: 30px;
-        filter: drop-shadow(0 2px 6px rgba(240, 42, 160, .35));
-    }
-    .brand-header-sub {
-        position: relative;
-        z-index: 1;
-        margin-top: 9px;
-        font-size: 14.5px;
-        color: #6B5B66;
-        max-width: 640px;
-    }
-    .brand-step {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin: 4px 0 10px 0;
-    }
-    .brand-step-num {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #F02AA0, #FF6EC7);
-        color: #fff;
-        font-weight: 900;
-        font-size: 14px;
-        box-shadow: 0 4px 10px rgba(240, 42, 160, .35);
-        flex-shrink: 0;
-    }
-    .brand-step-text {
-        font-size: 22px;
-        font-weight: 800;
-        color: #2B2130;
-    }
-    .brand-logo-img {
-        display: block;
-        height: 76px;
-        width: auto;
-        max-width: 100%;
-        object-fit: contain;
-        filter: drop-shadow(0 4px 10px rgba(240, 42, 160, .25));
-    }
-    /* Closest reasonable match to the logo's own chunky, rounded Y2K
-       lettering — there's no image-generation tool available to paint
-       new lettering directly into the logo artwork itself, so this
-       pairs it with real, crisp, same-colored text next to it instead
-       of trying to fake it as a raster edit. */
-    @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&display=swap');
-    .brand-logo-row {
-        position: relative;
-        z-index: 1;
-        display: flex;
-        align-items: center;
-        gap: 18px;
-        flex-wrap: wrap;
-    }
-    .brand-wordmark-text {
-        font-family: 'Baloo 2', sans-serif;
-        font-weight: 800;
-        font-size: 28px;
-        line-height: 1.05;
-        color: #F02AA0;
-        letter-spacing: .01em;
-        text-shadow: 0 2px 0 rgba(255, 255, 255, .55);
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-_logo_data_url = _brand_logo_data_url()
-
-st.markdown(
-    f"""
-    <div class="brand-header">
-        <div class="brand-header-shimmer"></div>
-        <div class="brand-header-title">
-            {
-                f'''<div class="brand-logo-row">
-                    <img class="brand-logo-img" src="{_logo_data_url}" alt="Womens Y2K">
-                    <span class="brand-wordmark-text">AI Listing Generator</span>
-                </div>'''
-                if _logo_data_url else
-                '<span class="brand-star">✨</span> Depop '
-                '<span class="brand-accent">AI Listing Machine</span>'
-            }
-        </div>
-        <div class="brand-header-sub">
-            Upload clothing photos and let AI group, generate, QA, and
-            prepare listings for Shopify.
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-def _brand_step_header(number, text):
-    st.markdown(
-        f"""
-        <div class="brand-step">
-            <span class="brand-step-num">{number}</span>
-            <span class="brand-step-text">{html.escape(text)}</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# ============================================================
-
-# ============================================================
-# ============================================================
-# PERMANENT UPLOAD ORIENTATION
-# Manual rotation is the only orientation change after upload.
-# ============================================================
-
-def normalize_uploaded_image_to_path(uploaded_file, file_path):
-    """Bake EXIF orientation into pixels only when necessary.
-
-    Most phone photos already have normal orientation. In that common case
-    we copy the uploaded bytes directly instead of opening, decoding,
-    recompressing, and rewriting the image.
-    """
-    file_path = Path(file_path)
-    suffix = file_path.suffix.lower()
-
-    try:
-        uploaded_file.seek(0)
-        raw = uploaded_file.getvalue()
-
-        # Fast path: inspect orientation without doing a full pixel rewrite.
-        try:
-            with Image.open(io.BytesIO(raw)) as source:
-                orientation = int(source.getexif().get(274, 1) or 1)
-        except Exception:
-            orientation = 1
-
-        if orientation == 1:
-            file_path.write_bytes(raw)
-            return file_path
-
-        # Only rotated/EXIF-oriented files take the expensive PIL path.
-        with Image.open(io.BytesIO(raw)) as source:
-            image = ImageOps.exif_transpose(source).copy()
-
-        if suffix in {".jpg", ".jpeg"}:
-            if image.mode not in ("RGB", "L"):
-                image = image.convert("RGB")
-            image.save(
-                file_path,
-                format="JPEG",
-                quality=92,
-                optimize=False,
-                exif=b"",
-            )
-        elif suffix == ".png":
-            image.save(file_path, format="PNG")
-        elif suffix == ".webp":
-            image.save(
-                file_path,
-                format="WEBP",
-                quality=90,
-                method=0,
-            )
-        else:
-            image = image.convert("RGB")
-            image.save(
-                file_path,
-                format="JPEG",
-                quality=92,
-                optimize=False,
-                exif=b"",
-            )
-
-        return file_path
-
-    except Exception:
-        # Fall back to the raw upload so one bad image cannot break a batch.
-        try:
-            uploaded_file.seek(0)
-            file_path.write_bytes(uploaded_file.getvalue())
-            return file_path
-        except Exception:
-            raise
-
-def manual_save_uploaded_files(
-    uploaded_files,
-    destination_prefix
-):
-    """
-    Save uploaded files with unique names.
-
-    Every upload is copied to the uploads directory immediately.
-    The saved path becomes the permanent identity of that photo.
-    """
-    saved = []
-
-    counter = st.session_state.get(
-        "manual_upload_counter",
-        0
-    )
-
-    for uploaded_file in uploaded_files or []:
-
-        counter += 1
-
-        safe_name = Path(
-            uploaded_file.name
-        ).name
-
-        file_path = (
-            UPLOAD_DIR
-            /
-            (
-                f"manual_{destination_prefix}_"
-                f"{counter}_{safe_name}"
-            )
-        )
-
-        file_path = normalize_uploaded_image_to_path(
-            uploaded_file,
-            file_path
-        )
-
-        saved.append(
-            file_path
-        )
-
-    st.session_state[
-        "manual_upload_counter"
-    ] = counter
-
-    return saved
-
-
-
-def manual_upload_signature(uploaded_files):
-    """Stable signature so Streamlit reruns don't overwrite rotated files."""
-    return [
-        (
-            str(getattr(file, "name", "")),
-            int(getattr(file, "size", 0) or 0),
-        )
-        for file in (uploaded_files or [])
-    ]
 
 
 # rotate_photo_in_place() moved to ai_listing.py — it has no Streamlit
@@ -3363,62 +4367,6 @@ def _review_photo_zoom_dialog():
             st.rerun()
 
 
-def manual_slot_sync_files(slot_index, uploaded_files):
-    """Persist one card independently.
-
-    IMPORTANT: Streamlit can temporarily return an empty list for a
-    previously-used uploader when another uploader triggers a rerun.
-    An empty transient value must NOT clear this card. Each card owns
-    its saved paths independently.
-    """
-    slots = st.session_state["manual_upload_slots"]
-    slot = slots[slot_index]
-
-    incoming = list(uploaded_files or [])
-
-    # CRITICAL: do not wipe this card when another card causes a rerun.
-    # Empty is a transient Streamlit widget state, not a user deletion.
-    if not incoming:
-        return
-
-    old_paths = list(slot.get("paths", []))
-
-    # Match existing saved files by their original filename suffix.
-    existing_by_name = {}
-    for path in old_paths:
-        p = Path(path)
-        existing_by_name[p.name] = path
-
-    new_paths = []
-
-    for uploaded_file in incoming:
-        filename = Path(uploaded_file.name).name
-
-        existing = None
-        for saved_name, saved_path in existing_by_name.items():
-            if (
-                saved_name == filename
-                or saved_name.endswith("_" + filename)
-            ):
-                if Path(saved_path).exists():
-                    existing = saved_path
-                    break
-
-        if existing:
-            new_paths.append(existing)
-        else:
-            saved = manual_save_uploaded_files(
-                [uploaded_file],
-                f"slot_{slot_index + 1}",
-            )
-            new_paths.extend(saved)
-
-    # Preserve the exact order returned by Streamlit.
-    slot["paths"] = new_paths
-    slot["signature"] = manual_upload_signature(incoming)
-
-    st.session_state["manual_upload_slots"] = slots
-
 def manual_make_group(
     paths,
     item_number,
@@ -3535,564 +4483,6 @@ def manual_sync_bulk_paths():
     ]
 
 
-# ------------------------------------------------------------
-# ------------------------------------------------------------
-
-# ------------------------------------------------------------
-
-# ------------------------------------------------------------
-
-# ------------------------------------------------------------
-
-# ------------------------------------------------------------
-# ------------------------------------------------------------
-# 10-ITEM SKINNY UPLOAD DECK
-# ------------------------------------------------------------
-# Five skinny cards across, five underneath.
-# The entire card is the actual Streamlit dropzone.
-# Only four tiny photo previews are visible at once.
-# Hover a preview to inspect it larger.
-# An arrow appears ONLY when there are more than four photos.
-st.markdown(
-    """
-    <style>
-    /* =========================================================
-       DECK GEOMETRY
-       ========================================================= */
-
-    .upload-deck-card-shell {
-        position: absolute !important;
-        inset: 0 !important;
-        z-index: 20 !important;
-        transform: none !important;
-        width: 100% !important;
-        height: 120px !important;
-        min-height: 120px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border: 0 !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        pointer-events: none !important;
-        overflow: visible !important;
-    }
-
-    /* The actual Streamlit column becomes the card. */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell) {
-        position: relative !important;
-        height: 120px !important;
-        min-height: 120px !important;
-        margin-bottom: 8px !important;
-        box-sizing: border-box !important;
-        border: 1px solid rgba(43,33,48,0.14) !important;
-        border-radius: 12px !important;
-        background: #FFFFFF !important;
-        box-shadow: 0 6px 14px rgba(0,0,0,.18) !important;
-        overflow: visible !important;
-    }
-
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell):hover {
-        border-color: #F02AA0 !important;
-        box-shadow: 0 9px 18px rgba(0,0,0,.24) !important;
-    }
-
-    /* Streamlit gives every widget/markdown call its own
-       stElementContainer wrapper, and that wrapper itself gets
-       position:relative from Streamlit's base CSS. Left alone, each
-       wrapper becomes its OWN positioning root — so a later widget's
-       inset:0/top:Npx (the file uploader, the photo strip, the title)
-       resolves against wherever ITS wrapper happens to sit in the
-       column's normal document flow, not against the card. That's why
-       the dropzone hit-target and the photo strip were drifting
-       downward: force every wrapper back to static so the column
-       above is the only positioning root any of them see. */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell) > div[data-testid="stElementContainer"] {
-        position: static !important;
-    }
-
-    /* =========================================================
-       ITEM TITLE
-       ========================================================= */
-
-    .upload-deck-card-title {
-        position: absolute !important;
-        top: 7px !important;
-        left: 9px !important;
-        right: 9px !important;
-        z-index: 50 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-        pointer-events: none !important;
-    }
-
-    .upload-deck-card-title .item-number {
-        font-size: 10px !important;
-        font-weight: 900 !important;
-        letter-spacing: .05em !important;
-        color: #2B2130 !important;
-    }
-
-    .upload-deck-card-title .item-count {
-        font-size: 8px !important;
-        font-weight: 700 !important;
-        color: rgba(43,33,48,0.55) !important;
-    }
-
-    /* =========================================================
-       WHOLE CARD = DROPZONE
-       No visible Upload button.
-       No "200MB per file" text.
-       The native uploader remains underneath and still accepts
-       drag/drop and click if the browser needs it.
-       ========================================================= */
-
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell) div[data-testid="stFileUploader"] {
-        position: absolute !important;
-        inset: 0 !important;
-        z-index: 5 !important;
-        width: 100% !important;
-        height: 120px !important;
-        min-height: 120px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell) div[data-testid="stFileUploader"] section,
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell) div[data-testid="stFileUploaderDropzone"] {
-        position: absolute !important;
-        inset: 0 !important;
-        width: 100% !important;
-        height: 120px !important;
-        min-height: 120px !important;
-        max-height: 120px !important;
-        padding: 0 !important;
-        box-sizing: border-box !important;
-        border: 0 !important;
-        border-radius: 12px !important;
-        background: transparent !important;
-        overflow: hidden !important;
-    }
-
-    /* COMPLETELY REMOVE THE NATIVE UPLOADER UI.
-       The uploader remains full-card and transparent so the browser still
-       accepts drag/drop and clicks anywhere on the Item card. */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell) div[data-testid="stFileUploader"] {
-        opacity: 1 !important;
-        visibility: visible !important;
-        pointer-events: auto !important;
-    }
-
-    /* The uploader is invisible chrome, but its actual file input spans
-       the complete card so the whole card accepts drops/clicks. */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell) div[data-testid="stFileUploader"] input[type="file"] {
-        position: absolute !important;
-        inset: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-        opacity: 0 !important;
-        cursor: pointer !important;
-        z-index: 20 !important;
-    }
-
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell) div[data-testid="stFileUploaderFile"] {
-        display: none !important;
-    }
-
-
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] button,
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] label,
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] small,
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzoneInstructions"],
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileData"] {
-        opacity: 0 !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-        display: none !important;
-    }
-
-    /* Kill every native selected-file chip / instruction block.
-       Keep ONLY the actual input element alive. */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] section > div:not(:has(input[type="file"])) {
-        display: none !important;
-    }
-
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"],
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileData"],
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] [data-testid*="FileUploaderFile"],
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] ul,
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] li {
-        display: none !important;
-        visibility: hidden !important;
-    }
-
-    /* Hide the native label/button text, not the input. */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] label {
-        position: absolute !important;
-        inset: 0 !important;
-        width: 100% !important;
-        height: 120px !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        border: 0 !important;
-        background: transparent !important;
-        color: transparent !important;
-        font-size: 0 !important;
-        box-shadow: none !important;
-        overflow: hidden !important;
-    }
-
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] label button,
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] label small,
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] label span {
-        display: none !important;
-        visibility: hidden !important;
-    }
-
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell)
-    div[data-testid="stFileUploader"] input[type="file"] {
-        position: absolute !important;
-        inset: 0 !important;
-        width: 100% !important;
-        height: 120px !important;
-        max-width: none !important;
-        max-height: none !important;
-        opacity: 0 !important;
-        cursor: pointer !important;
-        z-index: 999 !important;
-    }
-
-    /* Exact card being dragged over turns green. */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell).upload-card-drag-active {
-        border: 2px solid #2fd879 !important;
-        background: rgba(47,216,121,.10) !important;
-        box-shadow:
-            inset 0 0 0 2px rgba(47,216,121,.14),
-            0 0 0 3px rgba(47,216,121,.14) !important;
-    }
-
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .upload-deck-card-shell).upload-card-drag-active .upload-deck-card-shell {
-        border-radius: 12px !important;
-    }
-
-
-    /* =========================================================
-       FOUR TINY PHOTO SLOTS
-       { 0  0  0  0  → }
-       ========================================================= */
-
-       .upload-deck-photo-strip {
-        position: absolute !important;
-        top: 60px !important;
-        left: 50% !important;
-        right: auto !important;
-        bottom: auto !important;
-        width: max-content !important;
-        height: 42px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        transform: translate(-50%, -50%) !important;
-        z-index: 10050 !important;
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 6px !important;
-        pointer-events: none !important;
-        overflow: visible !important;
-    }
-
-      .upload-deck-thumb-wrap {
-        position: relative !important;
-        flex: 0 0 34px !important;
-        width: 34px !important;
-        height: 42px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: visible !important;
-        z-index: 10001 !important;
-        pointer-events: auto !important;
-    }
-
-      .upload-deck-thumb {
-        width: 34px !important;
-        height: 42px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        object-fit: cover !important;
-        display: block !important;
-        border-radius: 8px !important;
-        border: 1px solid rgba(43,33,48,0.12) !important;
-        background: #FBF3E3 !important;
-        cursor: zoom-in !important;
-        transition: transform .16s ease, box-shadow .16s ease !important;
-        transform-origin: center center !important;
-        position: relative !important;
-        z-index: 10002 !important;
-        pointer-events: auto !important;
-    }
-
-    .upload-deck-thumb-wrap:hover {
-        z-index: 1000 !important;
-    }
-
-    .upload-deck-thumb-wrap:hover .upload-deck-thumb,
-    .upload-deck-thumb.upload-thumb-hover {
-        transform: scale(3.8) !important;
-        z-index: 100000 !important;
-        border-color: #F02AA0 !important;
-        box-shadow: 0 18px 38px rgba(0,0,0,.72) !important;
-    }
-
-    .upload-deck-thumb.empty {
-        opacity: .13 !important;
-        cursor: default !important;
-    }
-
-    /* BUG FIX: the thumbnails need pointer-events:auto for their own
-       hover-to-zoom effect above, but that same setting was exactly
-       what made a drop landing ON an existing photo fail silently —
-       at z-index 10001/10002 (needed so hover-zoom draws above
-       everything else) they sat ABOVE the invisible file input
-       (z-index 999) that actually accepts the drop, so the browser
-       delivered the drop to the thumbnail instead, which does nothing
-       with it. The script below toggles this class on <body> for the
-       duration of an actual drag (dragenter -> drop/dragleave-off-
-       window), so thumbnails briefly stop intercepting pointer events
-       and the drop reaches the file input underneath — hover-zoom is
-       completely unaffected outside of an active drag. */
-    body.upload-drag-in-progress .upload-deck-thumb-wrap,
-    body.upload-drag-in-progress .upload-deck-thumb {
-        pointer-events: none !important;
-    }
-
-    /* Same problem, same fix: the arrow (next-page) and vintage-
-       checkbox host divs are ALSO pinned above the file input's
-       stacking context (z-index 60) so a drop landing on either one
-       would silently fail to register too — disable them for the
-       same drag window. */
-    body.upload-drag-in-progress div[class*="st-key-upload_arrow_host_"],
-    body.upload-drag-in-progress div[class*="st-key-upload_vintage_host_"] {
-        pointer-events: none !important;
-    }
-
-    /* =========================================================
-       ARROW — ONLY FOR >4 PHOTOS
-       ========================================================= */
-
-    /* Streamlit gives keyed containers a st-key-* class. */
-    div[class*="st-key-upload_arrow_host_"] {
-        position: absolute !important;
-        top: 42px !important;
-        right: 5px !important;
-        z-index: 60 !important;
-        width: 18px !important;
-        height: 40px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        pointer-events: auto !important;
-    }
-
-    div[class*="st-key-upload_arrow_host_"]
-    div[data-testid="stButton"] {
-        width: 18px !important;
-        height: 40px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    div[class*="st-key-upload_arrow_host_"]
-    div[data-testid="stButton"] button {
-        width: 18px !important;
-        min-width: 18px !important;
-        height: 40px !important;
-        min-height: 40px !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        border: 0 !important;
-        background: transparent !important;
-        color: rgba(43,33,48,0.55) !important;
-        font-size: 18px !important;
-        line-height: 1 !important;
-        box-shadow: none !important;
-    }
-
-    div[class*="st-key-upload_arrow_host_"]
-    div[data-testid="stButton"] button:hover {
-        color: #F02AA0 !important;
-        background: transparent !important;
-    }
-
-    .upload-deck-page-indicator {
-        display: none !important;
-    }
-
-    /* =========================================================
-       VINTAGE CHECKBOX — same "own keyed host" trick as the arrow
-       above, for the same reason (the invisible full-card file input
-       otherwise intercepts the click).
-       ========================================================= */
-
-    div[class*="st-key-upload_vintage_host_"] {
-        position: absolute !important;
-        left: 6px !important;
-        right: 6px !important;
-        bottom: 3px !important;
-        top: auto !important;
-        height: 20px !important;
-        z-index: 60 !important;
-        pointer-events: auto !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    div[class*="st-key-upload_vintage_host_"] div[data-testid="stCheckbox"] {
-        margin: 0 !important;
-        min-height: 0 !important;
-    }
-
-    div[class*="st-key-upload_vintage_host_"] label {
-        gap: 4px !important;
-        min-height: 0 !important;
-    }
-
-    div[class*="st-key-upload_vintage_host_"] label p {
-        font-size: 10px !important;
-        font-weight: 700 !important;
-        color: rgba(43,33,48,0.6) !important;
-        white-space: nowrap !important;
-    }
-
-    div[class*="st-key-upload_vintage_host_"] label span[data-baseweb="checkbox"] {
-        transform: scale(0.72) !important;
-    }
-
-    /* =========================================================
-       ROW SPACING
-       ========================================================= */
-
-    div[data-testid="stHorizontalBlock"] {
-        gap: 8px !important;
-    }
-
-    /* Keep the create/confirm button outside the cards. */
-    .upload-deck-confirm {
-        margin-top: 8px !important;
-        margin-bottom: 8px !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Browser drag tracking: highlight the EXACT card underneath the pointer.
-# Uses st.html(unsafe_allow_javascript=True) rather than
-# st.markdown(unsafe_allow_html=True) — markdown's HTML rendering
-# strips <script> tags entirely (only raw HTML passes through), so
-# this script was never actually running; st.html with that flag
-# executes directly in the main document (not iframed), which is
-# what a script that needs to add classes to document.body requires.
-st.html(
-    """
-    <script>
-    (() => {
-        if (window.__uploadDeckDragV7) return;
-        window.__uploadDeckDragV7 = true;
-
-        function cards() {
-            return Array.from(
-                document.querySelectorAll('.upload-deck-card-shell')
-            )
-            .map(shell => shell.parentElement)
-            .filter(Boolean);
-        }
-
-        function cardAt(x, y) {
-            for (const card of cards()) {
-                const r = card.getBoundingClientRect();
-                if (
-                    x >= r.left &&
-                    x <= r.right &&
-                    y >= r.top &&
-                    y <= r.bottom
-                ) {
-                    return card;
-                }
-            }
-            return null;
-        }
-
-        function clear() {
-            cards().forEach(card =>
-                card.classList.remove('upload-card-drag-active')
-            );
-        }
-
-        document.addEventListener('dragover', event => {
-            event.preventDefault();
-
-            document.body.classList.add('upload-drag-in-progress');
-
-            const target = cardAt(event.clientX, event.clientY);
-
-            cards().forEach(card => {
-                card.classList.toggle(
-                    'upload-card-drag-active',
-                    card === target
-                );
-            });
-        }, true);
-
-        document.addEventListener('dragenter', event => {
-            document.body.classList.add('upload-drag-in-progress');
-
-            const target = cardAt(event.clientX, event.clientY);
-
-            cards().forEach(card => {
-                card.classList.toggle(
-                    'upload-card-drag-active',
-                    card === target
-                );
-            });
-        }, true);
-
-        document.addEventListener('drop', () => {
-            document.body.classList.remove('upload-drag-in-progress');
-            setTimeout(clear, 150);
-        }, true);
-
-        document.addEventListener('dragleave', event => {
-            if (
-                event.clientX <= 0 ||
-                event.clientY <= 0 ||
-                event.clientX >= window.innerWidth ||
-                event.clientY >= window.innerHeight
-            ) {
-                document.body.classList.remove('upload-drag-in-progress');
-                clear();
-            }
-        }, true);
-    })();
-    </script>
-    """,
-    unsafe_allow_javascript=True,
-)
 
 # ------------------------------------------------------------
 # MANUAL UPLOAD STATE — MUST EXIST BEFORE THE UPLOAD FRAGMENT
@@ -4131,10 +4521,9 @@ def render_upload_deck():
     _brand_step_header(1, "Upload Your Items")
     st.markdown(
         '<div style="color:#9ca3af;margin-bottom:10px;">'
-        'Drag each garment directly onto its card. '
-        '<b>Each card is the entire drop zone.</b> '
-        'Hover a photo to inspect it larger. '
-        'Use the arrow only when a garment has more than four photos.'
+        'Click a thumbnail to make it the Main Photo, drag thumbnails to '
+        'reorder, or drop/click to add more. '
+        '<b>Each card is the entire drop zone.</b>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -4148,169 +4537,53 @@ def render_upload_deck():
         or 1
     )
 
-    for row_start in (0, 5):
-        row_cols = st.columns(5, gap="small")
+    slots_payload = []
+    for slot_index, slot in enumerate(slots):
+        photos = [
+            {
+                "id": str(Path(path).resolve()),
+                "name": Path(path).name,
+                "src": make_item_thumbnail_data_url(path, max_size=400),
+            }
+            for path in slot.get("paths", [])
+        ]
+        slots_payload.append({
+            "slot_index": slot_index,
+            "item_number": batch_start + slot_index,
+            "vintage": bool(slot.get("vintage", False)),
+            "photos": photos,
+        })
 
-        for col_offset in range(5):
-            slot_index = row_start + col_offset
-            slot = slots[slot_index]
-            item_number = batch_start + slot_index
+    if upload_slot_deck is not None:
+        deck_result = upload_slot_deck(
+            key="upload_slot_deck_main",
+            data={
+                "slots_json": json.dumps(slots_payload, ensure_ascii=False),
+            },
+            on_action_change=lambda: None,
+        )
 
-            saved_paths = list(slot.get("paths", []))
+        raw_action = getattr(deck_result, "action", None)
 
-            page_key = f"manual_slot_photo_page_{slot_index}"
-            page = int(
-                st.session_state.get(page_key, 0) or 0
-            )
+        if isinstance(raw_action, dict) and raw_action.get("type"):
+            normalized_action = {
+                "action": raw_action.get("type"),
+                **{
+                    key: value
+                    for key, value in raw_action.items()
+                    if key != "type"
+                },
+            }
 
-            total_pages = max(
-                1,
-                (len(saved_paths) + 3) // 4,
-            )
-
-            page = min(page, total_pages - 1)
-            st.session_state[page_key] = page
-
-            visible_paths = saved_paths[
-                page * 4:
-                page * 4 + 4
-            ]
-
-            photo_count = len(saved_paths)
-
-            with row_cols[col_offset]:
-
-                st.markdown(
-                    f"""
-                    <div class="upload-deck-card-shell">
-                        <div class="upload-deck-card-title">
-                            <span class="item-number">
-                                ITEM {item_number}
-                            </span>
-                            <span class="item-count">
-                                {photo_count} photo
-                                {"s" if photo_count != 1 else ""}
-                            </span>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                # Key is stable per slot for a given batch — it must NOT
-                # include the per-FILE upload counter. Baking that counter
-                # in meant every new file dropped anywhere on the page —
-                # on ANY card — changed every OTHER card's widget key too,
-                # which Streamlit treats as a brand new widget instance
-                # with no memory of its previous file selection. The sync
-                # below then overwrote slot["paths"] with only what that
-                # reset widget currently reported, silently losing
-                # whatever was uploaded before the reset. manual_upload_batch
-                # only changes once per "Confirm Items & Add More" click,
-                # which is the one time we DO want a genuine widget reset.
-                uploaded_files = st.file_uploader(
-                    f"Item {item_number} photos",
-                    type=["jpg", "jpeg", "png", "webp"],
-                    accept_multiple_files=True,
-                    key=(
-                        f"manual_upload_deck_v5_"
-                        f"{st.session_state.get('manual_upload_batch', 0)}_"
-                        f"{slot_index + 1}"
-                    ),
-                    label_visibility="collapsed",
-                    help="Drag this garment's photos anywhere onto this card.",
-                )
-
-                if uploaded_files is not None:
-                    manual_slot_sync_files(
-                        slot_index,
-                        uploaded_files,
-                    )
-
-                slot = st.session_state["manual_upload_slots"][slot_index]
-                saved_paths = list(slot.get("paths", []))
-
-                total_pages = max(
-                    1,
-                    (len(saved_paths) + 3) // 4,
-                )
-                page = min(
-                    int(st.session_state.get(page_key, 0) or 0),
-                    total_pages - 1,
-                )
-                st.session_state[page_key] = page
-
-                visible_paths = saved_paths[
-                    page * 4:
-                    page * 4 + 4
-                ]
-
-                thumb_html = []
-
-                for path in visible_paths:
-                    try:
-                        data_url = make_item_thumbnail_data_url(path)
-                        thumb_html.append(
-                            '<div class="upload-deck-thumb-wrap">'
-                            f'<img class="upload-deck-thumb" src="{data_url}" alt="">'
-                            '</div>'
-                        )
-                    except Exception:
-                        pass
-
-                while len(thumb_html) < 4:
-                    thumb_html.append(
-                        '<div class="upload-deck-thumb-wrap">'
-                        '<div class="upload-deck-thumb empty"></div>'
-                        '</div>'
-                    )
-
-                st.markdown(
-                    '<div class="upload-deck-photo-strip">'
-                    + "".join(thumb_html)
-                    + "</div>",
-                    unsafe_allow_html=True,
-                )
-
-                # Its own keyed host, same reason as the arrow button below:
-                # the card's invisible full-card file-input overlay
-                # (z-index:999, needed so the whole card is a drop zone)
-                # sits on top of anything in normal document flow. A
-                # dedicated st-key-* container gets its own scoped
-                # position:absolute + z-index rule (see
-                # upload_vintage_host_ in the CSS above), which — because
-                # that z-index is compared against the file-uploader's
-                # OUTER wrapper (z-index:5), not the input's inner
-                # z-index:999, which is scoped to its own stacking context
-                # — reliably wins and stays clickable.
-                with st.container(key=f"upload_vintage_host_{slot_index}"):
-                    slot["vintage"] = st.checkbox(
-                        "Vintage",
-                        value=bool(slot.get("vintage", False)),
-                        key=f"manual_slot_vintage_{slot_index}",
-                        help=(
-                            "Check if you know this item is vintage. The "
-                            "AI still runs its own vintage check too — "
-                            "this just guarantees it gets marked even if "
-                            "that check misses it."
-                        ),
-                    )
-
-                # The arrow lives in its own host so it can NEVER style or
-                # collide with the big confirm button below the deck.
-                if total_pages > 1:
-                    with st.container(
-                        key=f"upload_arrow_host_{slot_index}"
-                    ):
-                        if st.button(
-                            "›",
-                            key=f"slot_next_v5_{slot_index}",
-                            help="Next four photos",
-                        ):
-                            st.session_state[page_key] = (
-                                page + 1
-                            ) % total_pages
-                            st.rerun()
+            if handle_upload_slot_action(
+                st.session_state["manual_upload_slots"],
+                normalized_action,
+            ):
+                rerun_fragment_safe()
+    else:
+        st.error(
+            "Upload deck component unavailable in this Streamlit version."
+        )
 
     # ------------------------------------------------------------
     # ONE CONFIRM BUTTON — FILLED CARDS ONLY
@@ -4416,12 +4689,6 @@ def render_upload_deck():
                 }
                 for index in range(10)
             ]
-
-            for index in range(10):
-                st.session_state.pop(
-                    f"manual_slot_photo_page_{index}",
-                    None,
-                )
 
             manual_sync_bulk_paths()
             clear_qa_state()
