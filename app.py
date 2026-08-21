@@ -70,6 +70,7 @@ from upload_slot_component import (
     handle_upload_slot_action,
 )
 from auth import require_auth, logout
+from app_data import persist_generated_listing
 
 
 # ============================================================
@@ -1230,45 +1231,33 @@ def _render_sidebar_nav():
 
         current = st.session_state.get("main_nav_control", _NAV_GENERATOR)
 
-        if st.button(
-            "🧵  AI Listing Generator",
-            key="sidebar_nav_generator",
-            width="stretch",
-            type="primary" if current == _NAV_GENERATOR else "secondary",
-        ):
-            if current != _NAV_GENERATOR:
-                st.session_state["main_nav_control"] = _NAV_GENERATOR
-                st.rerun()
+        def _nav_button(label, value, key):
+            if st.button(
+                label,
+                key=key,
+                width="stretch",
+                type="primary" if current == value else "secondary",
+            ):
+                if current != value:
+                    st.session_state["main_nav_control"] = value
+                    st.rerun()
 
-        if st.button(
-            "📋  AI Description Generator",
-            key="sidebar_nav_descgen",
-            width="stretch",
-            type="primary" if current == _NAV_DESCGEN else "secondary",
-        ):
-            if current != _NAV_DESCGEN:
-                st.session_state["main_nav_control"] = _NAV_DESCGEN
-                st.rerun()
+        _nav_button("🧵  AI Listing Generator", _NAV_GENERATOR, "sidebar_nav_generator")
+        _nav_button("📋  AI Description Generator", _NAV_DESCGEN, "sidebar_nav_descgen")
 
         st.markdown('<div class="depop-nav-divider"></div>', unsafe_allow_html=True)
 
-        soon_items = [
-            ("📊", "Dashboard"), ("🛍️", "My Listings"), ("🧩", "Templates"),
-            ("🕘", "History"), ("📈", "Analytics"), ("❤️", "Favorites"),
-            ("⚙️", "Settings"),
-        ]
-        soon_rows = "".join(
-            f'<div class="depop-nav-soon-row">'
-            f'<span class="depop-nav-soon-label">{icon} {label}</span>'
-            f'<span class="depop-nav-soon-pill">Soon</span></div>'
-            for icon, label in soon_items
-        )
-        st.markdown(soon_rows, unsafe_allow_html=True)
+        _nav_button("📊  Dashboard", _NAV_DASHBOARD, "sidebar_nav_dashboard")
+        _nav_button("🛍️  My Listings", _NAV_MY_LISTINGS, "sidebar_nav_my_listings")
+        _nav_button("🧩  Templates", _NAV_TEMPLATES, "sidebar_nav_templates")
+        _nav_button("🕘  History", _NAV_HISTORY, "sidebar_nav_history")
+        _nav_button("📈  Analytics", _NAV_ANALYTICS, "sidebar_nav_analytics")
+        _nav_button("❤️  Favorites", _NAV_FAVORITES, "sidebar_nav_favorites")
+        _nav_button("⚙️  Settings", _NAV_SETTINGS, "sidebar_nav_settings")
 
-        st.markdown(
-            '<div class="depop-upgrade-badge">🔒 Upgrade</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="depop-nav-divider"></div>', unsafe_allow_html=True)
+
+        _nav_button("🔒  Upgrade", _NAV_UPGRADE, "sidebar_nav_upgrade")
 
         st.markdown('<div class="depop-nav-divider"></div>', unsafe_allow_html=True)
         st.caption(_current_user.get("email", ""))
@@ -1303,6 +1292,14 @@ def _render_sidebar_nav():
 # ============================================================
 _NAV_GENERATOR = "🧵 AI Listing Generator"
 _NAV_DESCGEN = "📋 AI Description Generator"
+_NAV_DASHBOARD = "📊 Dashboard"
+_NAV_MY_LISTINGS = "🛍️ My Listings"
+_NAV_TEMPLATES = "🧩 Templates"
+_NAV_HISTORY = "🕘 History"
+_NAV_ANALYTICS = "📈 Analytics"
+_NAV_FAVORITES = "❤️ Favorites"
+_NAV_SETTINGS = "⚙️ Settings"
+_NAV_UPGRADE = "🔒 Upgrade"
 
 st.session_state.setdefault("main_nav_control", _NAV_GENERATOR)
 
@@ -1311,6 +1308,24 @@ _render_sidebar_nav()
 if st.session_state["main_nav_control"] == _NAV_DESCGEN:
     from description_generator import render_description_generator
     render_description_generator()
+    st.stop()
+
+_NAV_PAGE_MODULES = {
+    _NAV_DASHBOARD: ("pages_dashboard", "render_dashboard"),
+    _NAV_MY_LISTINGS: ("pages_my_listings", "render_my_listings"),
+    _NAV_TEMPLATES: ("pages_templates", "render_templates"),
+    _NAV_HISTORY: ("pages_history", "render_history"),
+    _NAV_ANALYTICS: ("pages_analytics", "render_analytics"),
+    _NAV_FAVORITES: ("pages_favorites", "render_favorites"),
+    _NAV_SETTINGS: ("pages_settings", "render_settings"),
+    _NAV_UPGRADE: ("pages_upgrade", "render_upgrade"),
+}
+
+if st.session_state["main_nav_control"] in _NAV_PAGE_MODULES:
+    import importlib
+    _module_name, _render_fn_name = _NAV_PAGE_MODULES[st.session_state["main_nav_control"]]
+    _page_module = importlib.import_module(_module_name)
+    getattr(_page_module, _render_fn_name)(_current_user["id"])
     st.stop()
 
 _render_hero_header(_current_workflow_stage())
@@ -3144,7 +3159,8 @@ def clear_qa_state():
         "qa_red_selected",
         "qa_green_selected",
         "qa_ai_edit_queue",
-        "qa_complete"
+        "qa_complete",
+        "qa_ready_status_synced",
     ]:
 
         st.session_state.pop(
@@ -4254,6 +4270,49 @@ if (
         status_text = st.empty()
 
         # ------------------------------------------------------------
+        # LISTING DEFAULTS — an active Template (Templates page) takes
+        # priority; otherwise fall back to the user's saved Settings
+        # listing-preference defaults. Fetched once per click, applied
+        # per-item below by generate_one() — only ever fills a field
+        # the AI left blank, never overrides a confident AI read.
+        # ------------------------------------------------------------
+        _active_template = st.session_state.pop("active_template", None)
+        if _active_template:
+            _listing_defaults = {
+                "brand": _active_template.get("default_brand", ""),
+                "condition": _active_template.get("default_condition", ""),
+                "category": _active_template.get("default_category", ""),
+                "category_gid": _active_template.get("default_category_gid", ""),
+                "hashtags": _active_template.get("default_hashtags", []),
+            }
+        else:
+            try:
+                from app_data import get_listing_preferences
+                _prefs = get_listing_preferences(_current_user["id"])
+            except Exception:
+                _prefs = {}
+            _listing_defaults = {
+                "brand": "",
+                "condition": _prefs.get("default_condition", "") or "",
+                "category": _prefs.get("default_category", "") or "",
+                "category_gid": _prefs.get("default_category_gid", "") or "",
+                "hashtags": _prefs.get("default_hashtags", []) or [],
+            }
+
+        def _apply_listing_defaults(listing):
+            if _listing_defaults.get("brand") and not str(listing.get("brand", "")).strip():
+                listing["brand"] = _listing_defaults["brand"]
+            if _listing_defaults.get("condition") and not str(listing.get("condition", "")).strip():
+                listing["condition"] = _listing_defaults["condition"]
+            if _listing_defaults.get("category") and not str(listing.get("category", "")).strip():
+                listing["category"] = _listing_defaults["category"]
+                if _listing_defaults.get("category_gid"):
+                    listing["category_gid"] = _listing_defaults["category_gid"]
+            if _listing_defaults.get("hashtags") and not listing.get("hashtags"):
+                listing["hashtags"] = list(_listing_defaults["hashtags"])
+            return listing
+
+        # ------------------------------------------------------------
         # AUTO-STRAIGHTEN + AUTO-ORDER PHOTOS
         # Straighten sideways/upside-down photos (bad/missing EXIF)
         # and reorder each group's photos front->back->details->
@@ -4431,6 +4490,7 @@ if (
                     listing = analyze_item(job["photos"])
                     if listing is None:
                         raise RuntimeError("AI returned an empty listing.")
+                    listing = _apply_listing_defaults(listing)
                     # Preserved for the whole lifetime of this listing —
                     # the AI's own independent read, untouched by any
                     # manual override below. Used both to know whether a
@@ -4565,6 +4625,7 @@ if (
                         listing = analyze_item(job["photos"])
                         if listing is None:
                             raise RuntimeError("AI returned an empty listing.")
+                        listing = _apply_listing_defaults(listing)
                         listing["ai_auto_is_vintage"] = listing.get(
                             "is_vintage", False
                         )
@@ -4632,6 +4693,28 @@ if (
                 )
             )
         )
+
+        # Persist each successfully-generated listing to the database
+        # (status="draft") — this is what makes My Listings/Dashboard/
+        # Analytics/History real instead of always empty, since nothing
+        # in this generation flow wrote to the database before. Doesn't
+        # change anything about this screen or the review flow below;
+        # a persistence hiccup is logged and skipped, never surfaced
+        # here, so it can't block the existing generation UX.
+        for entry in generated_listings:
+            if not isinstance(entry.get("listing"), dict):
+                continue
+            try:
+                entry["db_id"] = persist_generated_listing(
+                    _current_user["id"],
+                    entry.get("item_number"),
+                    entry["listing"],
+                    entry.get("photos") or [],
+                    marked_vintage=entry.get("marked_vintage", False),
+                )
+            except Exception as persist_error:
+                print(f"Listing persistence skipped: {persist_error}")
+                entry["db_id"] = None
 
         st.session_state[
             "generated_listings"
@@ -6666,5 +6749,6 @@ if (
         )
 
         render_qa_review(
-            generated_listings
+            generated_listings,
+            user_id=_current_user["id"],
         )

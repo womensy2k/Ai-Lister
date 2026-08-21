@@ -20,6 +20,7 @@ from ai_listing import (
     detect_photo_rotations,
     rotate_photo_in_place,
 )
+from app_data import update_listing_status
 
 
 # ============================================================
@@ -1531,7 +1532,8 @@ def _qa_field_grid_html(listing, checks):
 # ============================================================
 
 def render_qa_review(
-    listings
+    listings,
+    user_id=None,
 ):
 
     initialize_qa_state(
@@ -2243,6 +2245,18 @@ def render_qa_review(
         st.session_state["qa_complete"] = True
         st.session_state["final_qa_passed"] = True
 
+        # Bump every persisted listing to "ready" — guarded by a
+        # session flag so this doesn't re-run (and re-hit the database
+        # for every listing) on every single rerun while this QA
+        # screen stays open, only the first time this batch reaches
+        # the all-approved state.
+        if user_id and not st.session_state.get("qa_ready_status_synced"):
+            for listing_data in listings:
+                db_id = (listing_data or {}).get("db_id")
+                if db_id:
+                    update_listing_status(user_id, db_id, "ready")
+            st.session_state["qa_ready_status_synced"] = True
+
         st.success(
             "🟩 Final AI QA complete — "
             f"all {total_count} listings are approved. "
@@ -2301,6 +2315,15 @@ def render_qa_review(
                             "index": index,
                             "result": result,
                         })
+
+                        db_id = listing_data.get("db_id")
+                        if user_id and db_id:
+                            update_listing_status(
+                                user_id,
+                                db_id,
+                                "listed",
+                                shopify_product_id=(result or {}).get("product_id"),
+                            )
 
                     except Exception as error:
                         shopify_errors.append({
