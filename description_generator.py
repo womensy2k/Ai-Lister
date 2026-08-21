@@ -12,12 +12,15 @@ app.py does not need to import from here except to call
 render_description_generator() from behind the page router.
 """
 
+import base64
 import html as html_module
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from io import BytesIO
 from pathlib import Path
 
 import streamlit as st
+from PIL import Image, ImageOps
 
 from ai_listing import analyze_item, build_depop_description, image_to_data_url
 
@@ -173,6 +176,70 @@ def _generate_batch(slot_photo_lists):
         status.success(f"Generated {total} item(s).")
 
 
+_SLOT_CARD_CSS = """
+<style>
+div[class*="st-key-descgen_slot_card_"] {
+    border: 1px solid rgba(43,33,48,0.14);
+    border-radius: 12px;
+    background: #FFFFFF;
+    padding: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.05);
+}
+div[class*="st-key-descgen_slot_card_"] div[data-testid="stFileUploaderDropzone"] {
+    background: #FBF3E3;
+    border: 1px dashed rgba(43,33,48,0.25);
+    border-radius: 8px;
+    padding: 8px;
+    min-height: 76px;
+}
+div[class*="st-key-descgen_slot_card_"] div[data-testid="stFileUploaderDropzoneInstructions"] span,
+div[class*="st-key-descgen_slot_card_"] div[data-testid="stFileUploaderDropzoneInstructions"] small {
+    font-size: 11px;
+}
+div[class*="st-key-descgen_slot_card_"] button {
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+}
+div[class*="st-key-descgen_slot_card_"] div[data-testid="stFileUploaderFileName"] {
+    font-size: 11px;
+}
+.descgen-slot-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+.descgen-slot-thumbs img {
+    width: 34px;
+    height: 34px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid rgba(43,33,48,0.18);
+}
+</style>
+"""
+
+
+def _thumb_data_url_from_upload(uploaded_file, max_dimension=120):
+    """Quick thumbnail straight from the in-memory uploaded bytes —
+    no disk write yet. Files only get saved once the batch is
+    actually generated, so a slot can be filled/cleared/re-picked
+    freely without piling up throwaway files on disk."""
+    try:
+        uploaded_file.seek(0)
+        with Image.open(BytesIO(uploaded_file.getvalue())) as image:
+            image = ImageOps.exif_transpose(image)
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            image.thumbnail((max_dimension, max_dimension))
+            buffer = BytesIO()
+            image.save(buffer, format="JPEG", quality=70)
+            encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+            return f"data:image/jpeg;base64,{encoded}"
+    except Exception:
+        return None
+
+
 def _render_ingestion():
     batch_start = st.session_state["descgen_batch_start"]
     generation = st.session_state["descgen_slot_generation"]
@@ -185,6 +252,7 @@ def _render_ingestion():
         f"this batch, you'll get a fresh set of empty slots for "
         f"items {batch_end + 1}–{batch_end + SLOTS_PER_BATCH}."
     )
+    st.html(_SLOT_CARD_CSS)
 
     slot_files = [None] * SLOTS_PER_BATCH
     cols_row1 = st.columns(5, gap="small")
@@ -194,17 +262,30 @@ def _render_ingestion():
     for slot_index in range(SLOTS_PER_BATCH):
         item_number = batch_start + slot_index
         with all_cols[slot_index]:
-            st.caption(f"**Item {item_number}**")
-            files = st.file_uploader(
-                f"Item {item_number}",
-                type=["jpg", "jpeg", "png", "webp"],
-                accept_multiple_files=True,
-                key=f"descgen_slot_{slot_index}_{generation}",
-                label_visibility="collapsed",
-            )
-            slot_files[slot_index] = files
-            if files:
-                st.caption(f"{len(files)} photo(s)")
+            with st.container(key=f"descgen_slot_card_{slot_index}"):
+                st.markdown(f"**Item {item_number}**")
+                files = st.file_uploader(
+                    f"Item {item_number}",
+                    type=["jpg", "jpeg", "png", "webp"],
+                    accept_multiple_files=True,
+                    key=f"descgen_slot_{slot_index}_{generation}",
+                    label_visibility="collapsed",
+                )
+                slot_files[slot_index] = files
+                if files:
+                    thumbs_html = "".join(
+                        f'<img src="{url}">'
+                        for url in (
+                            _thumb_data_url_from_upload(f) for f in files[:8]
+                        )
+                        if url
+                    )
+                    if thumbs_html:
+                        st.markdown(
+                            f'<div class="descgen-slot-thumbs">{thumbs_html}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    st.caption(f"{len(files)} photo(s)")
 
     filled_count = sum(1 for files in slot_files if files)
 
