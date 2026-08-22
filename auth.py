@@ -560,6 +560,7 @@ def _inject_pwa_head_tags():
     # live. This is the smallest possible script, structured as close
     # to that known-working one as possible, to isolate whether it's a
     # complexity/length issue or something else.
+    st.markdown('<div id="y2k-python-reached-marker">PYTHON_REACHED_THIS_FUNCTION</div>', unsafe_allow_html=True)
     st.html(
         """
         <script>
@@ -568,6 +569,10 @@ def _inject_pwa_head_tags():
         })();
         </script>
         """,
+        unsafe_allow_javascript=True,
+    )
+    st.html(
+        "<script>document.body.setAttribute('data-y2k-body-script-ran', 'yes');</script>",
         unsafe_allow_javascript=True,
     )
 
