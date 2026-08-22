@@ -21,6 +21,7 @@ from ai_listing import (
     rotate_photo_in_place,
 )
 from app_data import update_listing_status
+from push_notifications import send_push
 
 
 # ============================================================
@@ -2346,6 +2347,29 @@ def render_qa_review(
                 st.session_state[
                     "shopify_upload_errors"
                 ] = shopify_errors
+
+                if user_id:
+                    try:
+                        if shopify_errors and shopify_results:
+                            send_push(
+                                user_id,
+                                "Shopify publish finished",
+                                f"{len(shopify_results)} draft(s) created, {len(shopify_errors)} failed — check the errors below.",
+                            )
+                        elif shopify_errors:
+                            send_push(
+                                user_id,
+                                "Shopify publish failed",
+                                f"All {len(shopify_errors)} draft(s) failed to publish.",
+                            )
+                        else:
+                            send_push(
+                                user_id,
+                                "Shopify publish finished",
+                                f"{len(shopify_results)} draft(s) created successfully.",
+                            )
+                    except Exception as push_error:
+                        print(f"Push notification skipped: {push_error}")
 
                 if shopify_errors:
                     upload_status.warning(

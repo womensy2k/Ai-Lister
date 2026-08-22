@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Enable Notifications — Y2K Lister</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#F02AA0">
+<link rel="icon" href="icon-192.png">
+
+<!--
+This page exists on GitHub Pages, a DIFFERENT origin than the actual
+app (Streamlit Cloud), on purpose: iOS only allows the notification
+permission prompt and service-worker registration to happen from a
+page that shares the origin+scope of the installed home-screen app's
+manifest — which lives here, not on streamlit.app (see index.html's
+own comment on why the manifest can't live on the Streamlit side at
+all). So enabling notifications has to happen from THIS origin, even
+though the rest of the app lives elsewhere.
+
+It never touches your Supabase auth session (this page has none — it's
+a different origin, no cookie access to it either). Instead it's handed
+a short-lived, single-use pairing token as a URL param, minted by the
+logged-in Settings page inside the real app. That token is the only
+thing proving which account this device's subscription belongs to.
+-->
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100dvh;
+    background: #FBF3E3;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #2B2130;
+  }
+  .card {
+    max-width: 420px;
+    margin: 15vh auto 0 auto;
+    padding: 0 24px;
+    text-align: center;
+  }
+  .card img { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 18px; }
+  h1 { font-size: 19px; margin: 0 0 10px 0; }
+  p { font-size: 14px; color: #6B5B66; line-height: 1.5; margin: 0 0 22px 0; }
+  .spinner {
+    width: 24px; height: 24px;
+    margin: 0 auto 18px auto;
+    border: 3px solid rgba(240, 42, 160, .18);
+    border-top-color: #F02AA0;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status-icon { font-size: 40px; margin-bottom: 14px; }
+  button {
+    font: inherit;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: none;
+    background: linear-gradient(135deg, #F02AA0, #FF6EC7);
+    color: #fff;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <img src="icon-192.png" alt="">
+    <div class="spinner"></div>
+    <h1 id="heading">Setting up notifications&hellip;</h1>
+    <p id="message">One moment.</p>
+  </div>
+
+  <script>
+    var SUPABASE_URL = "https://kuqyhjlcigfilqfvdxda.supabase.co";
+    var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cXloamxjaWdmaWxxZnZkeGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMjEyNjUsImV4cCI6MjEwMjg5NzI2NX0.z13KyP6HJ86k8cCgcqLTtryjk1z5o3fDVUo4zQMjFJM";
+    var VAPID_PUBLIC_KEY = "BBqt3ia2VGCrc_cDQlhWWiwTH86xpDTE2-un1DlV2Q8y6Qe0OKILL2sH-bzLpbRF5xxeobNxClfUWi-sJFQYcNg";
+    var APP_URL = "https://y2klister.streamlit.app/?embed=true&embed_options=light_theme";
+
+    var headingEl = document.getElementById("heading");
+    var messageEl = document.getElementById("message");
+    var cardEl = document.getElementById("card");
+
+    function showResult(icon, heading, message, showRetryButton) {
+      cardEl.innerHTML =
+        '<img src="icon-192.png" alt="">' +
+        '<div class="status-icon">' + icon + '</div>' +
+        '<h1>' + heading + '</h1>' +
+        '<p>' + message + '</p>' +
+        (showRetryButton ? '<button onclick="window.location.reload()">Try Again</button>' : "");
+    }
+
+    function urlBase64ToUint8Array(base64String) {
+      var padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+      var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+      var rawData = window.atob(base64);
+      var outputArray = new Uint8Array(rawData.length);
+      for (var i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    }
+
+    async function run() {
+      var params = new URLSearchParams(window.location.search);
+      var token = params.get("token");
+
+      if (!token) {
+        showResult("⚠️", "Missing link", "Open this page from the “Enable Notifications” button in Y2K Lister's Settings — it needs a one-time link, not a bookmark.", false);
+        return;
+      }
+
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        showResult("🚫", "Not supported here", "Push notifications need iOS 16.4+ (Settings → General → Software Update to check), and this app added to your Home Screen first.", false);
+        return;
+      }
+
+      if (Notification.permission === "denied") {
+        showResult("🔕", "Notifications are blocked", "iOS is blocking notifications for this app. Go to iPhone Settings → Y2K Lister → Notifications and turn them on, then reopen this link.", false);
+        return;
+      }
+
+      try {
+        var permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          showResult("🔕", "Not enabled", "You'll need to allow notifications to get updates when your listings finish or publish.", true);
+          return;
+        }
+
+        var registration = await navigator.serviceWorker.register("sw.js", { scope: "./" });
+        await navigator.serviceWorker.ready;
+
+        var existing = await registration.pushManager.getSubscription();
+        var subscription = existing || await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+
+        var subJson = subscription.toJSON();
+        var response = await fetch(SUPABASE_URL + "/rest/v1/rpc/consume_push_pairing_token", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            p_token: token,
+            p_endpoint: subJson.endpoint,
+            p_p256dh_key: subJson.keys.p256dh,
+            p_auth_key: subJson.keys.auth,
+            p_user_agent: navigator.userAgent,
+          }),
+        });
+
+        var ok = response.ok && (await response.json()) === true;
+        if (!ok) {
+          showResult("⌛", "Link expired", "That notification link already expired or was used. Go back to Settings in Y2K Lister and tap “Enable Notifications” again.", false);
+          return;
+        }
+
+        showResult("✅", "Notifications enabled!", "You'll get a notification here when a batch finishes generating or a Shopify publish completes. You can close this page and go back to Y2K Lister.", false);
+      } catch (error) {
+        showResult("⚠️", "Something went wrong", "Couldn't finish setting up notifications. Go back to Settings and try again.", true);
+      }
+    }
+
+    run();
+  </script>
+</body>
+</html>

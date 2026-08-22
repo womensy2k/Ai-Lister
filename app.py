@@ -38,6 +38,9 @@ _SECRET_ENV_KEYS = (
     "SUPABASE_URL",
     "SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
+    "VAPID_PRIVATE_KEY",
+    "VAPID_PUBLIC_KEY",
+    "VAPID_CONTACT_EMAIL",
 )
 try:
     for _secret_key in _SECRET_ENV_KEYS:
@@ -71,6 +74,7 @@ from upload_slot_component import (
 )
 from auth import require_auth, logout
 from app_data import persist_generated_listing
+from push_notifications import send_push
 
 
 # ============================================================
@@ -4727,6 +4731,24 @@ if (
             except Exception as persist_error:
                 print(f"Listing persistence skipped: {persist_error}")
                 entry["db_id"] = None
+
+        _push_succeeded = sum(1 for entry in generated_listings if entry.get("listing"))
+        _push_failed = len(generated_listings) - _push_succeeded
+        try:
+            if _push_failed:
+                send_push(
+                    _current_user["id"],
+                    "Listing batch finished",
+                    f"{_push_succeeded} of {len(generated_listings)} generated — {_push_failed} failed and need a look.",
+                )
+            else:
+                send_push(
+                    _current_user["id"],
+                    "Listing batch finished",
+                    f"All {_push_succeeded} listing(s) generated and ready to review.",
+                )
+        except Exception as push_error:
+            print(f"Push notification skipped: {push_error}")
 
         st.session_state[
             "generated_listings"

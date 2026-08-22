@@ -7,3 +7,4 @@ ImageHash==4.3.2
 playwright==1.62.0
 supabase==2.31.0
 extra-streamlit-components==0.1.81
+pywebpush==2.4.0

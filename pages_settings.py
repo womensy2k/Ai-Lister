@@ -15,6 +15,15 @@ from ai_listing import SHOPIFY_CATEGORY_PATHS
 from auth import logout
 from supabase_client import get_supabase_client, get_supabase_admin_client
 from app_data import get_listing_preferences, save_listing_preferences
+from push_notifications import create_pairing_token, list_subscriptions, delete_subscription
+
+# GitHub Pages origin the installed home-screen app is served from —
+# NOT this Streamlit app's own domain. iOS only allows the push
+# permission prompt / service-worker registration to happen from the
+# same origin+scope as the installed PWA's manifest, which lives there
+# (see docs/index.html and docs/notifications.html). Update this if the
+# Pages site is ever moved to a custom domain.
+_NOTIFICATIONS_SETUP_URL = "https://womensy2k.github.io/Ai-Lister/notifications.html"
 
 
 def _render_account_section(user_id, user_email):
@@ -73,6 +82,56 @@ def _render_listing_preferences_section(user_id):
             st.error("Couldn't save preferences — try again.")
 
 
+def _render_notifications_section(user_id):
+    st.markdown("#### Notifications")
+    st.caption(
+        "Get a push notification on your phone when a batch finishes generating "
+        "or a Shopify publish completes — only works from the version of this app "
+        "added to your iPhone's Home Screen (iOS 16.4+), not a regular Safari tab."
+    )
+
+    subscriptions = list_subscriptions(user_id)
+    if subscriptions:
+        st.success(f"Enabled on {len(subscriptions)} device(s).")
+        for sub in subscriptions:
+            label = sub.get("user_agent") or "Unknown device"
+            if len(label) > 60:
+                label = label[:57] + "..."
+            cols = st.columns([4, 1])
+            with cols[0]:
+                st.caption(f"📱 {label} — since {str(sub.get('created_at', ''))[:10]}")
+            with cols[1]:
+                if st.button("Remove", key=f"push_remove_{sub['id']}", width="stretch"):
+                    delete_subscription(user_id, sub["id"])
+                    st.rerun()
+    else:
+        st.caption("Not enabled on any device yet.")
+
+    if st.button("🔔 Enable Notifications on This Device", key="push_enable_btn"):
+        token = create_pairing_token(user_id)
+        if token:
+            setup_link = f"{_NOTIFICATIONS_SETUP_URL}?token={token}"
+            st.session_state["push_setup_link"] = setup_link
+        else:
+            st.error("Couldn't start setup — try again.")
+
+    setup_link = st.session_state.get("push_setup_link")
+    if setup_link:
+        st.markdown(
+            f'<a href="{setup_link}" target="_blank" rel="noopener" '
+            f'style="display:inline-block; margin-top:8px; padding:10px 18px; '
+            f'border-radius:999px; background:linear-gradient(135deg,#F02AA0,#FF6EC7); '
+            f'color:#fff; font-weight:800; font-size:13px; text-decoration:none;">'
+            f'Tap here to finish enabling &rarr;</a>',
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "Open this on the phone you added Y2K Lister to — for the notification "
+            "permission prompt to work, it has to be tapped from inside that installed "
+            "app, not from a link shared elsewhere. This link expires in 10 minutes."
+        )
+
+
 def _render_account_actions_section(user_id):
     st.markdown("#### Account Actions")
 
@@ -114,5 +173,7 @@ def render_settings(user_id):
     _render_account_section(user_id, user_email)
     st.divider()
     _render_listing_preferences_section(user_id)
+    st.divider()
+    _render_notifications_section(user_id)
     st.divider()
     _render_account_actions_section(user_id)
