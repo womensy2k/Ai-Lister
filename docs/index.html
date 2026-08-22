@@ -48,9 +48,9 @@
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  /* Shown only for the instant before the redirect below fires (or if
-     JS is disabled — see the <noscript> fallback), so there's never a
-     blank white flash on launch. */
+  /* Shown while launching from the installed icon (standalone mode —
+     redirects immediately, see the script below) or if JS is disabled
+     (the <noscript> fallback), so there's never a blank white flash. */
   .splash {
     position: fixed;
     inset: 0;
@@ -69,6 +69,42 @@
     animation: spin .7s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Shown instead of the splash/auto-redirect when this is a plain
+     Safari visit (NOT already running standalone) — i.e. exactly the
+     moment someone is trying to install it. Auto-redirecting here too
+     would move Safari's address bar to the streamlit.app URL before
+     they get a chance to tap Share, so "Add to Home Screen" would
+     create an icon pointing at the WRONG page and silently undo the
+     whole point of this file (see the comment further down). */
+  .install-card {
+    display: none;
+    position: fixed;
+    inset: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 32px;
+    text-align: center;
+  }
+  .install-card.show { display: flex; }
+  .install-card img { width: 84px; height: 84px; border-radius: 20px; margin-bottom: 12px; }
+  .install-card h1 { font-size: 19px; margin: 0 0 10px 0; color: #2B2130; }
+  .install-card p { font-size: 14px; line-height: 1.6; color: #6B5B66; margin: 0 0 8px 0; max-width: 340px; }
+  .install-card .share-icon {
+    display: inline-block;
+    width: 18px; height: 18px;
+    vertical-align: -3px;
+    margin: 0 2px;
+  }
+  .install-card a {
+    margin-top: 18px;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #F02AA0;
+    text-decoration: none;
+  }
   .offline-banner {
     position: fixed;
     left: 0; right: 0;
@@ -103,6 +139,13 @@
     <img src="icon-192.png" alt="">
     <div class="spinner"></div>
   </div>
+  <div class="install-card" id="installCard">
+    <img src="icon-192.png" alt="">
+    <h1>Add Y2K Lister to your Home Screen</h1>
+    <p>Tap the <strong>Share</strong> button below (⬆️ in Safari's toolbar), then choose <strong>Add to Home Screen</strong>.</p>
+    <p>Launching from that icon is what makes login, offline handling, and notifications actually work — opening this page in a regular tab skips all of that.</p>
+    <a href="https://y2klister.streamlit.app/?embed=true&embed_options=light_theme">Just want to use it in the browser for now? Open Y2K Lister →</a>
+  </div>
   <div class="offline-banner" id="offlineBanner">
     You're offline — Y2K Lister needs an internet connection.
   </div>
@@ -116,6 +159,16 @@
   <script>
     var DEST = "https://y2klister.streamlit.app/?embed=true&embed_options=light_theme";
 
+    // True only when launched FROM the installed Home Screen icon
+    // (navigator.standalone is iOS Safari's own flag; display-mode is
+    // the general/Android equivalent). A plain Safari visit — which is
+    // exactly what's happening while someone is trying to install this
+    // in the first place — is neither of these, and must NOT
+    // auto-redirect (see the .install-card comment above for why).
+    var isStandalone =
+      window.navigator.standalone === true ||
+      window.matchMedia("(display-mode: standalone)").matches;
+
     function updateOnlineStatus() {
       var banner = document.getElementById('offlineBanner');
       if (navigator.onLine) {
@@ -128,7 +181,10 @@
     window.addEventListener('offline', updateOnlineStatus);
     updateOnlineStatus();
 
-    if (navigator.onLine) {
+    if (!isStandalone) {
+      document.getElementById('splash').style.display = 'none';
+      document.getElementById('installCard').classList.add('show');
+    } else if (navigator.onLine) {
       window.location.replace(DEST);
     } else {
       // Wait for connectivity instead of redirecting straight into a
