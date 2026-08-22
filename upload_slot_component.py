@@ -67,31 +67,69 @@ UPLOAD_SLOT_DECK_CSS = """
   border-color: #F02AA0;
   box-shadow: 0 0 0 3px rgba(240, 42, 160, .18), 0 10px 24px rgba(240, 42, 160, .18);
 }
-.slot-card.uploading .slot-upload-overlay { display: flex; }
-.slot-upload-overlay {
-  display: none;
+@keyframes slotSpin { to { transform: rotate(360deg); } }
+
+/* Per-photo pending state — a small corner chip while a just-selected
+   local preview is being encoded/saved, so the photo itself stays
+   fully visible instead of being hidden behind a full-card overlay. */
+.slot-pending-overlay {
   position: absolute;
-  inset: 0;
-  z-index: 50;
-  background: rgba(255, 255, 255, .90);
-  border-radius: 12px;
+  top: 4px;
+  right: 4px;
+  background: rgba(255, 255, 255, .92);
+  border-radius: 999px;
+  padding: 4px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #F02AA0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .15);
 }
-.slot-upload-overlay .spinner {
-  width: 22px;
-  height: 22px;
-  border: 3px solid rgba(240, 42, 160, .18);
+.slot-pending-overlay .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2.5px solid rgba(240, 42, 160, .25);
   border-top-color: #F02AA0;
   border-radius: 50%;
   animation: slotSpin .7s linear infinite;
 }
-@keyframes slotSpin { to { transform: rotate(360deg); } }
+.slot-pending-overlay.is-failed {
+  position: absolute;
+  inset: 0;
+  top: auto;
+  right: auto;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, .94);
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 20px 6px 6px;
+}
+.slot-pending-label { font-size: 9px; font-weight: 800; color: #e0335c; text-align: center; line-height: 1.2; }
+.slot-main-photo .slot-pending-label { padding-right: 14px; }
+.slot-retry-btn {
+  border: none;
+  background: #F02AA0;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.slot-dismiss-btn {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(43, 33, 48, .7);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+.slot-main-photo.is-failed img, .slot-thumb.is-failed img { opacity: .35; }
 
 .slot-header {
   display: flex;
@@ -267,6 +305,14 @@ export default function(component) {
   const { data, parentElement, setTriggerValue } = component;
   const deckEl = parentElement.querySelector("[data-deck]");
 
+  // Client-side-only "photo just selected, not yet confirmed by Python"
+  // state. Declared at this outer scope (not inside render()) so it
+  // survives across the repeated render() calls triggered by every new
+  // `data` prop — Python doesn't know about these photos until their
+  // add_files round trip lands.
+  const pendingBySlot = new Map();   // slotIndex -> [{localId, objectUrl, file, status}]
+  const lastRealCount = new Map();   // slotIndex -> photo count last seen from Python
+
   function emit(action) {
     setTriggerValue("action", action);
   }
@@ -276,6 +322,10 @@ export default function(component) {
       event.dataTransfer &&
       Array.from(event.dataTransfer.types || []).includes("Files")
     );
+  }
+
+  function makeLocalId() {
+    return "local_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
   }
 
   async function prepareFile(file) {
@@ -298,20 +348,123 @@ export default function(component) {
     };
   }
 
-  async function uploadFiles(card, slotIndex, files) {
+  // Drops "submitted" pending entries for a slot once Python's real
+  // photo count for that slot has grown — the round trip landed, so the
+  // real thumbnail takes over from the local preview. Doesn't touch
+  // "uploading" (still in flight) or "failed" (needs retry/dismiss)
+  // entries, and a count going down (a removal elsewhere) never clears
+  // anything here.
+  function reconcilePending(slots) {
+    slots.forEach((slot) => {
+      const slotIndex = Number(slot.slot_index);
+      const realCount = Array.isArray(slot.photos) ? slot.photos.length : 0;
+      const prevCount = lastRealCount.has(slotIndex) ? lastRealCount.get(slotIndex) : realCount;
+
+      if (realCount > prevCount) {
+        const pending = pendingBySlot.get(slotIndex) || [];
+        const stillPending = [];
+        pending.forEach((entry) => {
+          if (entry.status === "submitted") {
+            URL.revokeObjectURL(entry.objectUrl);
+          } else {
+            stillPending.push(entry);
+          }
+        });
+        pendingBySlot.set(slotIndex, stillPending);
+      }
+      lastRealCount.set(slotIndex, realCount);
+    });
+  }
+
+  // Encodes + emits one pending entry, independently of any siblings
+  // selected alongside it — a large/slow photo never holds up the rest.
+  async function processEntry(slotIndex, entry) {
+    try {
+      const prepared = await prepareFile(entry.file);
+      entry.status = "submitted";
+      emit({ type: "add_files", slot_index: slotIndex, files: [prepared] });
+    } catch (error) {
+      console.error("Photo processing failed", error);
+      entry.status = "failed";
+    }
+    render();
+  }
+
+  function uploadFiles(slotIndex, files) {
     const valid = Array.from(files).filter(
       file => /\\.(jpe?g|png|webp)$/i.test(file.name)
     );
     if (!valid.length) return;
-    card.classList.add("uploading");
-    try {
-      const payload = [];
-      for (const file of valid) payload.push(await prepareFile(file));
-      emit({ type: "add_files", slot_index: slotIndex, files: payload });
-    } catch (error) {
-      console.error("Upload failed", error);
-      card.classList.remove("uploading");
+
+    const entries = valid.map((file) => ({
+      localId: makeLocalId(),
+      objectUrl: URL.createObjectURL(file),
+      file,
+      status: "uploading",
+    }));
+
+    const existing = pendingBySlot.get(slotIndex) || [];
+    pendingBySlot.set(slotIndex, existing.concat(entries));
+
+    // Instant local preview — createObjectURL is near-zero-cost, unlike
+    // the createImageBitmap -> canvas resize -> toDataURL -> Python
+    // round trip in processEntry() below, so this paints immediately
+    // instead of waiting on that whole pipeline.
+    render();
+
+    entries.forEach((entry) => { processEntry(slotIndex, entry); });
+  }
+
+  function retryPendingEntry(slotIndex, entry) {
+    entry.status = "uploading";
+    render();
+    processEntry(slotIndex, entry);
+  }
+
+  function dismissPendingEntry(slotIndex, entry) {
+    const pending = pendingBySlot.get(slotIndex) || [];
+    pendingBySlot.set(slotIndex, pending.filter((item) => item !== entry));
+    URL.revokeObjectURL(entry.objectUrl);
+    render();
+  }
+
+  function buildStatusOverlay(slotIndex, entry) {
+    const overlay = document.createElement("div");
+    if (entry.status === "failed") {
+      overlay.className = "slot-pending-overlay is-failed";
+
+      const label = document.createElement("div");
+      label.className = "slot-pending-label";
+      label.textContent = "Upload failed";
+      overlay.appendChild(label);
+
+      const retryBtn = document.createElement("button");
+      retryBtn.type = "button";
+      retryBtn.className = "slot-retry-btn";
+      retryBtn.textContent = "Retry";
+      retryBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        retryPendingEntry(slotIndex, entry);
+      });
+      overlay.appendChild(retryBtn);
+
+      const dismissBtn = document.createElement("button");
+      dismissBtn.type = "button";
+      dismissBtn.className = "slot-dismiss-btn";
+      dismissBtn.title = "Remove";
+      dismissBtn.textContent = "×";
+      dismissBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        dismissPendingEntry(slotIndex, entry);
+      });
+      overlay.appendChild(dismissBtn);
+    } else {
+      overlay.className = "slot-pending-overlay";
+      overlay.innerHTML = '<div class="spinner"></div>';
     }
+    return overlay;
   }
 
   function attachCardDropZone(card, slotIndex) {
@@ -337,13 +490,13 @@ export default function(component) {
         card.classList.remove("file-over");
       }
     });
-    card.addEventListener("drop", async (event) => {
+    card.addEventListener("drop", (event) => {
       if (!isExternalFileDrag(event)) return;
       event.preventDefault();
       event.stopPropagation();
       depth = 0;
       card.classList.remove("file-over");
-      await uploadFiles(card, slotIndex, event.dataTransfer.files || []);
+      uploadFiles(slotIndex, event.dataTransfer.files || []);
     });
   }
 
@@ -530,19 +683,28 @@ export default function(component) {
 
     deckEl.innerHTML = "";
 
+    reconcilePending(slots);
+
     slots.forEach((slot) => {
       const slotIndex = Number(slot.slot_index);
       const itemNumber = Number(slot.item_number);
-      const photos = Array.isArray(slot.photos) ? slot.photos : [];
+      const realPhotos = Array.isArray(slot.photos) ? slot.photos : [];
+      const pendingEntries = pendingBySlot.get(slotIndex) || [];
+      // Local-only previews appended after Python-confirmed photos, so
+      // they show up immediately without waiting on their own round
+      // trip — see uploadFiles()/processEntry() above.
+      const photos = realPhotos.concat(
+        pendingEntries.map((entry) => ({
+          id: entry.localId,
+          name: entry.file.name,
+          src: entry.objectUrl,
+          pending: entry,
+        }))
+      );
 
       const card = document.createElement("div");
       card.className = "slot-card";
       card.dataset.slotIndex = String(slotIndex);
-
-      const overlay = document.createElement("div");
-      overlay.className = "slot-upload-overlay";
-      overlay.innerHTML = '<div class="spinner"></div><div>Uploading…</div>';
-      card.appendChild(overlay);
 
       const header = document.createElement("div");
       header.className = "slot-header";
@@ -573,11 +735,11 @@ export default function(component) {
       fileInput.multiple = true;
       fileInput.accept = "image/jpeg,image/png,image/webp";
       fileInput.style.display = "none";
-      fileInput.addEventListener("change", async () => {
+      fileInput.addEventListener("change", () => {
         const files = Array.from(fileInput.files || []);
         fileInput.value = "";
         if (!files.length) return;
-        await uploadFiles(card, slotIndex, files);
+        uploadFiles(slotIndex, files);
       });
       card.appendChild(fileInput);
 
@@ -605,16 +767,24 @@ export default function(component) {
         }
         body.appendChild(grid);
       } else {
+        const mainPhotoData = photos[0];
         const mainPhoto = document.createElement("div");
         mainPhoto.className = "slot-main-photo";
+        if (mainPhotoData.pending) {
+          mainPhoto.classList.add(mainPhotoData.pending.status === "failed" ? "is-failed" : "is-pending");
+        }
         const mainImg = document.createElement("img");
-        mainImg.src = photos[0].src || "";
-        mainImg.alt = photos[0].name || "Main photo";
-        const mainBadge = document.createElement("div");
-        mainBadge.className = "slot-main-badge";
-        mainBadge.textContent = "MAIN PHOTO";
+        mainImg.src = mainPhotoData.src || "";
+        mainImg.alt = mainPhotoData.name || "Main photo";
         mainPhoto.appendChild(mainImg);
-        mainPhoto.appendChild(mainBadge);
+        if (mainPhotoData.pending) {
+          mainPhoto.appendChild(buildStatusOverlay(slotIndex, mainPhotoData.pending));
+        } else {
+          const mainBadge = document.createElement("div");
+          mainBadge.className = "slot-main-badge";
+          mainBadge.textContent = "MAIN PHOTO";
+          mainPhoto.appendChild(mainBadge);
+        }
         body.appendChild(mainPhoto);
 
         const grid = document.createElement("div");
@@ -632,29 +802,36 @@ export default function(component) {
           img.draggable = false;
           thumbCard.appendChild(img);
 
-          const removeBtn = document.createElement("button");
-          removeBtn.type = "button";
-          removeBtn.className = "slot-thumb-remove";
-          removeBtn.title = "Remove photo";
-          removeBtn.textContent = "×";
-          removeBtn.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            emit({ type: "remove", slot_index: slotIndex, id: String(photo.id) });
-          });
-          thumbCard.appendChild(removeBtn);
-
-          thumbCard.addEventListener("click", (event) => {
-            if (event.target.closest(".slot-thumb-remove")) return;
-            if (thumbCard.dataset.justDragged === "true") {
+          if (photo.pending) {
+            // Not yet confirmed by Python — no id it can act on, so no
+            // remove/promote/reorder until the round trip lands.
+            thumbCard.classList.add(photo.pending.status === "failed" ? "is-failed" : "is-pending");
+            thumbCard.appendChild(buildStatusOverlay(slotIndex, photo.pending));
+          } else {
+            const removeBtn = document.createElement("button");
+            removeBtn.type = "button";
+            removeBtn.className = "slot-thumb-remove";
+            removeBtn.title = "Remove photo";
+            removeBtn.textContent = "×";
+            removeBtn.addEventListener("click", (event) => {
               event.preventDefault();
               event.stopPropagation();
-              return;
-            }
-            emit({ type: "promote_main", slot_index: slotIndex, id: String(photo.id) });
-          });
+              emit({ type: "remove", slot_index: slotIndex, id: String(photo.id) });
+            });
+            thumbCard.appendChild(removeBtn);
 
-          attachThumbDrag(thumbCard, grid, slotIndex);
+            thumbCard.addEventListener("click", (event) => {
+              if (event.target.closest(".slot-thumb-remove")) return;
+              if (thumbCard.dataset.justDragged === "true") {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+              }
+              emit({ type: "promote_main", slot_index: slotIndex, id: String(photo.id) });
+            });
+
+            attachThumbDrag(thumbCard, grid, slotIndex);
+          }
 
           grid.appendChild(thumbCard);
         });

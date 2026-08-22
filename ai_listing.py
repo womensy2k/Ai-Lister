@@ -2722,126 +2722,141 @@ OUTPUT
     except Exception:
         listing["size_tag_photo_indexes"] = []
 
-    if size_needs_verification or brand_needs_verification:
-        try:
-            (
-                tag_size,
-                tag_confidence,
-                tag_evidence,
-                tag_brand,
-                tag_brand_confidence,
-                tag_brand_evidence,
-                tag_crop_data_url,
-            ) = _verify_size_from_tags(
-                image_paths,
-                located_regions=located_tag_regions,
-            )
-
-            # The actual cropped tag image the model read size/brand
-            # from — powers the "hover to see the tag" review-screen
-            # preview for both fields, instead of a whole uncropped
-            # photo the user has to squint at to find the tag in.
-            if tag_crop_data_url:
-                listing["evidence_crop_data_url"] = tag_crop_data_url
-
-            # Only touch size if size itself is what needed verifying —
-            # a brand-only trigger must never overwrite an already-good
-            # size just because this particular crop pass didn't
-            # re-confirm it as cleanly the second time.
-            if size_needs_verification:
-                if tag_size != "-" and tag_confidence >= 70:
-                    listing["size"] = tag_size
-                    listing["size_confidence"] = tag_confidence
-                    listing["size_evidence"] = tag_evidence
-                else:
-                    listing["size"] = "-"
-                    listing["size_confidence"] = 0
-                    listing["size_evidence"] = (
-                        tag_evidence
-                        or verified_evidence
-                        or "The size marking could not be read confidently from the tag photos."
-                    )
-
-            # Unlike size, do NOT clear a decent primary-pass brand to
-            # "-" just because this tag crop didn't happen to contain a
-            # brand mark — a crop legitimately missing a size marking
-            # doesn't mean it's legitimately missing a brand mark. Only
-            # overwrite when the tag pass actually found one.
-            if tag_brand != "-" and tag_brand_confidence >= 70:
-                listing["brand"] = tag_brand
-                listing["brand_confidence"] = tag_brand_confidence
-                listing["brand_evidence"] = tag_brand_evidence
-
-        except Exception as size_error:
-            print(
-                "Dedicated size-tag verification skipped: "
-                + str(size_error)
-            )
-            if size_needs_verification:
-                if verified_size not in {"Unknown", "-", ""} and verified_confidence >= 50:
-                    listing["size"] = verified_size
-                    listing["size_confidence"] = verified_confidence
-                    listing["size_evidence"] = verified_evidence
-                else:
-                    listing["size"] = "-"
-                    listing["size_confidence"] = 0
-                    listing["size_evidence"] = (
-                        "No size could be confidently read from the provided tag photos."
-                    )
-            # brand: leave whatever validate_brand() already set (almost
-            # always empty at this point) — nothing better to fall back to.
-
-
     # --------------------------------------------------------
-    # VINTAGE / DISCONTINUED-ERA TAG ANALYSIS
-    # Runs on EVERY item, unconditionally — widened from an earlier
-    # version that only ran this when size/brand needed verification or
-    # the main pass's own AESTHETIC guess already suspected "vintage".
-    # That gated version missed genuinely vintage items that don't
-    # "look" vintage stylistically (so the aesthetic guess never fires)
-    # but have confidently-read size/brand (so the tag pass never runs
-    # either) — tag evidence (RN number, retired logo era, union label)
-    # is supposed to be authoritative regardless of visible wear or
-    # style, so it needs to actually run every time to make good on
-    # that. Costs one extra locate-if-needed + reading call per item.
+    # SIZE/BRAND tag verification and VINTAGE tag verification (below)
+    # are independent of each other — neither consumes the other's
+    # result, both only need located_tag_regions from the locate step
+    # above — so when both need to run they're kicked off concurrently
+    # instead of back-to-back. Saves one full vision-call round trip per
+    # item with no change to which calls are made, what's in their
+    # prompts, or what they return.
+    #
+    # VINTAGE / DISCONTINUED-ERA TAG ANALYSIS runs on EVERY item,
+    # unconditionally — widened from an earlier version that only ran
+    # this when size/brand needed verification or the main pass's own
+    # AESTHETIC guess already suspected "vintage". That gated version
+    # missed genuinely vintage items that don't "look" vintage
+    # stylistically (so the aesthetic guess never fires) but have
+    # confidently-read size/brand (so the tag pass never runs either) —
+    # tag evidence (RN number, retired logo era, union label) is
+    # supposed to be authoritative regardless of visible wear or style,
+    # so it needs to actually run every time to make good on that.
     # --------------------------------------------------------
     try:
         bias_hint = _vintage_correction_bias_hint(listing)
     except Exception:
         bias_hint = ""
 
-    try:
-        vintage_result = _verify_vintage_from_tags(
+    with ThreadPoolExecutor(max_workers=2) as _verification_executor:
+        vintage_future = _verification_executor.submit(
+            _verify_vintage_from_tags,
             image_paths,
             located_regions=located_tag_regions,
             bias_hint=bias_hint,
         )
 
-        listing["is_vintage"] = vintage_result["is_vintage"]
-        listing["vintage_classification"] = vintage_result[
-            "listing_classification"
-        ]
-        listing["vintage_evidence"] = {
-            "tag_era_signal": vintage_result["tag_era_signal"],
-            "discontinued_element": vintage_result[
-                "discontinued_element"
-            ],
-            "estimated_era": vintage_result["estimated_era"],
-            "confidence": vintage_result["confidence"],
-            "rn_number": vintage_result["rn_number"],
-            "suggested_listing_tags": vintage_result[
-                "suggested_listing_tags"
-            ],
-            "evidence_notes": vintage_result["evidence_notes"],
-        }
+        size_future = None
+        if size_needs_verification or brand_needs_verification:
+            size_future = _verification_executor.submit(
+                _verify_size_from_tags,
+                image_paths,
+                located_regions=located_tag_regions,
+            )
 
-    except Exception as vintage_error:
-        print(
-            "Dedicated vintage-tag verification skipped: "
-            + str(vintage_error)
-        )
-        listing.setdefault("is_vintage", False)
-        listing.setdefault("vintage_classification", "none")
+        if size_future is not None:
+            try:
+                (
+                    tag_size,
+                    tag_confidence,
+                    tag_evidence,
+                    tag_brand,
+                    tag_brand_confidence,
+                    tag_brand_evidence,
+                    tag_crop_data_url,
+                ) = size_future.result()
+
+                # The actual cropped tag image the model read size/brand
+                # from — powers the "hover to see the tag" review-screen
+                # preview for both fields, instead of a whole uncropped
+                # photo the user has to squint at to find the tag in.
+                if tag_crop_data_url:
+                    listing["evidence_crop_data_url"] = tag_crop_data_url
+
+                # Only touch size if size itself is what needed verifying —
+                # a brand-only trigger must never overwrite an already-good
+                # size just because this particular crop pass didn't
+                # re-confirm it as cleanly the second time.
+                if size_needs_verification:
+                    if tag_size != "-" and tag_confidence >= 70:
+                        listing["size"] = tag_size
+                        listing["size_confidence"] = tag_confidence
+                        listing["size_evidence"] = tag_evidence
+                    else:
+                        listing["size"] = "-"
+                        listing["size_confidence"] = 0
+                        listing["size_evidence"] = (
+                            tag_evidence
+                            or verified_evidence
+                            or "The size marking could not be read confidently from the tag photos."
+                        )
+
+                # Unlike size, do NOT clear a decent primary-pass brand to
+                # "-" just because this tag crop didn't happen to contain a
+                # brand mark — a crop legitimately missing a size marking
+                # doesn't mean it's legitimately missing a brand mark. Only
+                # overwrite when the tag pass actually found one.
+                if tag_brand != "-" and tag_brand_confidence >= 70:
+                    listing["brand"] = tag_brand
+                    listing["brand_confidence"] = tag_brand_confidence
+                    listing["brand_evidence"] = tag_brand_evidence
+
+            except Exception as size_error:
+                print(
+                    "Dedicated size-tag verification skipped: "
+                    + str(size_error)
+                )
+                if size_needs_verification:
+                    if verified_size not in {"Unknown", "-", ""} and verified_confidence >= 50:
+                        listing["size"] = verified_size
+                        listing["size_confidence"] = verified_confidence
+                        listing["size_evidence"] = verified_evidence
+                    else:
+                        listing["size"] = "-"
+                        listing["size_confidence"] = 0
+                        listing["size_evidence"] = (
+                            "No size could be confidently read from the provided tag photos."
+                        )
+                # brand: leave whatever validate_brand() already set (almost
+                # always empty at this point) — nothing better to fall back to.
+
+        try:
+            vintage_result = vintage_future.result()
+
+            listing["is_vintage"] = vintage_result["is_vintage"]
+            listing["vintage_classification"] = vintage_result[
+                "listing_classification"
+            ]
+            listing["vintage_evidence"] = {
+                "tag_era_signal": vintage_result["tag_era_signal"],
+                "discontinued_element": vintage_result[
+                    "discontinued_element"
+                ],
+                "estimated_era": vintage_result["estimated_era"],
+                "confidence": vintage_result["confidence"],
+                "rn_number": vintage_result["rn_number"],
+                "suggested_listing_tags": vintage_result[
+                    "suggested_listing_tags"
+                ],
+                "evidence_notes": vintage_result["evidence_notes"],
+            }
+
+        except Exception as vintage_error:
+            print(
+                "Dedicated vintage-tag verification skipped: "
+                + str(vintage_error)
+            )
+            listing.setdefault("is_vintage", False)
+            listing.setdefault("vintage_classification", "none")
 
     # The title above was written in the FIRST vision call, before this
     # dedicated tag check ran — the model had only its own conservative

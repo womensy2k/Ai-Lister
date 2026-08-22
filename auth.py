@@ -34,8 +34,10 @@ without one):
    Verify which path your project actually takes once Supabase exists.
 """
 
+import base64
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import extra_streamlit_components as stx
 import streamlit as st
@@ -119,10 +121,25 @@ def _restore_session_from_cookie():
     client = get_supabase_client()
     try:
         client.auth.set_session(access_token, refresh_token)
-        user_response = client.auth.get_user()
-        user = user_response.user if user_response else None
+        session = client.auth.get_session()
+        user = session.user if session else None
         if user is None:
             return None
+
+        # set_session() transparently refreshes an expired access token
+        # using the refresh token — but Supabase ROTATES the refresh
+        # token on every refresh, invalidating the one that was just
+        # used. If the new pair isn't written back to the cookie here,
+        # the next restore (a new tab, the next day) replays the
+        # now-dead old refresh token and fails, forcing a real
+        # re-login even though the user never logged out — this is
+        # what silently broke "remember me" after about an hour.
+        # Re-persisting also slides the 30-day expiry forward on every
+        # active visit rather than a hard 30-day cutoff from login.
+        if session.access_token != access_token or session.refresh_token != refresh_token:
+            _store_session_cookie(session.access_token, session.refresh_token)
+            time.sleep(0.4)
+
         return {"id": user.id, "email": user.email}
     except Exception:
         _clear_session_cookie()
@@ -163,6 +180,21 @@ def logout():
 # visitor. Same palette (grep-verified against app.py), not reinvented.
 # ============================================================
 
+@st.cache_data(show_spinner=False)
+def _auth_logo_data_url():
+    """Base64-embeds the real brand logo (same file app.py's sidebar
+    uses) so the login/signup card can show it with no separate file
+    request — cached so it isn't re-read/re-encoded on every rerun.
+    Kept as its own copy rather than importing app.py's version, since
+    this module has to stay self-contained (it renders before app.py
+    even gets a chance to run for a logged-out visitor)."""
+    path = Path(__file__).with_name("logo_transparent.png")
+    if not path.exists():
+        return ""
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
 def _inject_auth_css():
     st.markdown(
         """
@@ -186,6 +218,15 @@ def _inject_auth_css():
             color: #F02AA0;
             text-align: center;
             margin-bottom: 4px;
+        }
+        .auth-logo-wrap {
+            text-align: center;
+            margin-bottom: 4px;
+        }
+        .auth-logo-wrap img {
+            width: 62%;
+            max-width: 200px;
+            height: auto;
         }
         .auth-subtitle {
             text-align: center;
@@ -437,10 +478,17 @@ def _render_auth_screen():
     # in this app already.
     with st.container(key="auth_shell"):
         with st.container(key="auth_card"):
-            st.markdown(
-                '<div class="auth-wordmark">Womens Y2K</div>',
-                unsafe_allow_html=True,
-            )
+            logo_url = _auth_logo_data_url()
+            if logo_url:
+                st.markdown(
+                    f'<div class="auth-logo-wrap"><img src="{logo_url}" alt="Womens Y2K"></div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div class="auth-wordmark">Womens Y2K</div>',
+                    unsafe_allow_html=True,
+                )
 
             if st.session_state.get("auth_recovery_pending"):
                 st.markdown(
