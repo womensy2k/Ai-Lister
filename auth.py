@@ -523,10 +523,85 @@ def _render_auth_screen():
                     _render_forgot_password_form()
 
 
+def _inject_pwa_head_tags():
+    """Makes THIS app's own URL directly installable as a standalone,
+    chrome-less home-screen app on iOS — instead of relying on a
+    separate GitHub Pages wrapper page.
+
+    That wrapper existed because Streamlit Cloud's own page template
+    writes its own generic <head> tags (manifest, apple-touch-icon) on
+    initial page load, and there's no way to out-race that from normal
+    Streamlit content — anything rendered via st.markdown()/st.html()
+    lands in the BODY, never the actual <head>, regardless of where in
+    the script it's called from. But a wrapper page turned out to trade
+    one problem for another: it had its own top-level page redirect
+    into this app to fix third-party-cookie login persistence, and
+    iOS reveals the address bar/Safari chrome on ANY navigation that
+    crosses outside the installed app's own origin — which that
+    redirect always did, defeating the "no browser chrome" point of
+    installing it as an app in the first place.
+    Both problems go away if the icon installed points at THIS origin
+    directly (no wrapper, no cross-origin redirect ever). Real
+    top-level JS (via st.html's unsafe_allow_javascript, same mechanism
+    already used elsewhere in this app for real clipboard access) DOES
+    have full document.head access after the page has already loaded —
+    it just edits the DOM directly instead of trying to win an
+    initial-parse race. Removes whatever Streamlit Cloud's own template
+    already put there first, so ours are the ones iOS actually reads
+    when "Add to Home Screen" is tapped. Idempotent — always removes
+    before adding, so re-running this every rerun never duplicates tags.
+    """
+    st.html(
+        """
+        <script>
+        (function() {
+            var head = document.head;
+            var staleSelectors = [
+                'link[rel="manifest"]',
+                'link[rel="apple-touch-icon"]',
+                'meta[name="apple-mobile-web-app-capable"]',
+                'meta[name="apple-mobile-web-app-title"]',
+                'meta[name="apple-mobile-web-app-status-bar-style"]',
+                'meta[name="theme-color"]'
+            ];
+            staleSelectors.forEach(function (selector) {
+                head.querySelectorAll(selector).forEach(function (el) { el.remove(); });
+            });
+
+            function addMeta(name, content) {
+                var el = document.createElement('meta');
+                el.setAttribute('name', name);
+                el.setAttribute('content', content);
+                head.appendChild(el);
+            }
+            function addLink(rel, href) {
+                var el = document.createElement('link');
+                el.setAttribute('rel', rel);
+                el.setAttribute('href', href);
+                head.appendChild(el);
+            }
+
+            addMeta('apple-mobile-web-app-capable', 'yes');
+            addMeta('apple-mobile-web-app-status-bar-style', 'default');
+            addMeta('apple-mobile-web-app-title', 'Y2K Lister');
+            addMeta('theme-color', '#F02AA0');
+            addLink('apple-touch-icon', 'https://womensy2k.github.io/Ai-Lister/apple-touch-icon.png');
+            addLink('manifest', 'https://womensy2k.github.io/Ai-Lister/manifest.json');
+
+            document.title = 'Y2K Lister';
+        })();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
+
 def require_auth():
     """Call at the very top of every page, before rendering anything
     else. Returns {"id", "email"} for the logged-in user. Renders the
     login/signup screen and st.stop()s if there's no valid session."""
+    _inject_pwa_head_tags()
+
     if _try_consume_recovery_link():
         _render_auth_screen()
         st.stop()
