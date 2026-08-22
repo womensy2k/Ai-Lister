@@ -555,98 +555,88 @@ def _inject_pwa_head_tags():
         """
         <script>
         (function() {
-            // This app's own content actually renders inside a SAME-ORIGIN
-            // nested iframe (Streamlit Community Cloud's gateway/viewer
-            // shell loads it at a "/~/+/..." sub-path, confirmed live via
-            // window.top.location vs window.location differing) — not as
-            // the true top-level page itself. Safari's Add to Home Screen
-            // reads the TOP-LEVEL document's <head>, so editing plain
-            // `document.head` here was silently editing the WRONG
-            // document the whole time (confirmed live: a real iPhone kept
-            // picking up Streamlit's own name/icon no matter what this
-            // script did locally). window.top.document IS reachable
-            // without a cross-origin error specifically because it's the
-            // same origin (y2klister.streamlit.app either way, just a
-            // different path) — same-origin policy only cares about
-            // scheme+host+port, not path. Falls back to the local
-            // document if window.top is ever cross-origin or unavailable
-            // (e.g. running the plain open-source template locally,
-            // outside Streamlit Cloud, where there's no nesting at all).
-            var targetDoc = document;
-            var targetWin = window;
+            function reportDebug(stage, info) {
+                try {
+                    var existing = document.head.querySelector('meta[name="y2k-pwa-debug"]');
+                    if (existing) existing.remove();
+                    var el = document.createElement('meta');
+                    el.setAttribute('name', 'y2k-pwa-debug');
+                    el.setAttribute('content', stage + ': ' + info);
+                    document.head.appendChild(el);
+                } catch (reportError) { /* nothing more we can do */ }
+            }
+
             try {
-                if (window.top && window.top.document) {
-                    targetDoc = window.top.document;
-                    targetWin = window.top;
-                }
-            } catch (error) {
-                targetDoc = document;
-                targetWin = window;
-            }
+                reportDebug('start', 'script running, local origin=' + window.location.origin);
 
-            var STALE_SELECTORS = [
-                'link[rel="manifest"]',
-                'link[rel="apple-touch-icon"]',
-                'link[rel="apple-touch-icon-precomposed"]',
-                'meta[name="apple-mobile-web-app-capable"]',
-                'meta[name="apple-mobile-web-app-title"]',
-                'meta[name="apple-mobile-web-app-status-bar-style"]',
-                'meta[name="theme-color"]'
-            ];
-
-            function applyTags() {
-                var head = targetDoc.head;
-                STALE_SELECTORS.forEach(function (selector) {
-                    head.querySelectorAll(selector).forEach(function (el) { el.remove(); });
-                });
-
-                function addMeta(name, content) {
-                    var el = targetDoc.createElement('meta');
-                    el.setAttribute('name', name);
-                    el.setAttribute('content', content);
-                    head.appendChild(el);
-                }
-                function addLink(rel, href) {
-                    var el = targetDoc.createElement('link');
-                    el.setAttribute('rel', rel);
-                    el.setAttribute('href', href);
-                    head.appendChild(el);
+                var targetDoc = document;
+                var targetWin = window;
+                try {
+                    if (window.top && window.top.document) {
+                        targetDoc = window.top.document;
+                        targetWin = window.top;
+                    }
+                } catch (topError) {
+                    reportDebug('top-access-failed', String(topError));
                 }
 
-                addMeta('apple-mobile-web-app-capable', 'yes');
-                addMeta('apple-mobile-web-app-status-bar-style', 'default');
-                addMeta('apple-mobile-web-app-title', 'Y2K Lister');
-                addMeta('theme-color', '#F02AA0');
-                addLink('apple-touch-icon', 'https://womensy2k.github.io/Ai-Lister/apple-touch-icon.png');
-                addLink('manifest', 'https://womensy2k.github.io/Ai-Lister/manifest.json');
+                var STALE_SELECTORS = [
+                    'link[rel="manifest"]',
+                    'link[rel="apple-touch-icon"]',
+                    'link[rel="apple-touch-icon-precomposed"]',
+                    'meta[name="apple-mobile-web-app-capable"]',
+                    'meta[name="apple-mobile-web-app-title"]',
+                    'meta[name="apple-mobile-web-app-status-bar-style"]',
+                    'meta[name="theme-color"]'
+                ];
 
-                if (targetDoc.title !== 'Y2K Lister') {
-                    targetDoc.title = 'Y2K Lister';
+                function applyTags() {
+                    var head = targetDoc.head;
+                    STALE_SELECTORS.forEach(function (selector) {
+                        var found = head.querySelectorAll(selector);
+                        for (var i = 0; i < found.length; i++) { found[i].remove(); }
+                    });
+
+                    function addMeta(name, content) {
+                        var el = targetDoc.createElement('meta');
+                        el.setAttribute('name', name);
+                        el.setAttribute('content', content);
+                        head.appendChild(el);
+                    }
+                    function addLink(rel, href) {
+                        var el = targetDoc.createElement('link');
+                        el.setAttribute('rel', rel);
+                        el.setAttribute('href', href);
+                        head.appendChild(el);
+                    }
+
+                    addMeta('apple-mobile-web-app-capable', 'yes');
+                    addMeta('apple-mobile-web-app-status-bar-style', 'default');
+                    addMeta('apple-mobile-web-app-title', 'Y2K Lister');
+                    addMeta('theme-color', '#F02AA0');
+                    addLink('apple-touch-icon', 'https://womensy2k.github.io/Ai-Lister/apple-touch-icon.png');
+                    addLink('manifest', 'https://womensy2k.github.io/Ai-Lister/manifest.json');
+
+                    if (targetDoc.title !== 'Y2K Lister') {
+                        targetDoc.title = 'Y2K Lister';
+                    }
                 }
-            }
 
-            applyTags();
+                applyTags();
+                reportDebug('applied', 'targetDoc.title=' + targetDoc.title + ' sameAsTop=' + (targetDoc === document ? 'no' : 'yes'));
 
-            // Streamlit Cloud's own shell manages its head tags via
-            // react-helmet and can re-render/re-assert them after this
-            // already ran once — a one-time fix can't reliably beat a
-            // moving target, so this keeps re-winning instead: any time
-            // something in the target document's <head> changes,
-            // immediately re-apply.
-            if (!targetWin.__y2kPwaHeadObserverInstalled) {
-                targetWin.__y2kPwaHeadObserverInstalled = true;
-                // applyTags() itself mutates <head> (remove-then-add),
-                // which would otherwise make the observer re-trigger
-                // itself forever — disconnect before touching the DOM,
-                // reconnect once done, so it only reacts to changes
-                // from OUTSIDE this function (Streamlit Cloud's own
-                // shell), never its own.
-                var observer = new MutationObserver(function () {
-                    observer.disconnect();
-                    applyTags();
+                if (!targetWin.__y2kPwaHeadObserverInstalled) {
+                    targetWin.__y2kPwaHeadObserverInstalled = true;
+                    var observer = new MutationObserver(function () {
+                        observer.disconnect();
+                        applyTags();
+                        observer.observe(targetDoc.head, { childList: true, subtree: true });
+                    });
                     observer.observe(targetDoc.head, { childList: true, subtree: true });
-                });
-                observer.observe(targetDoc.head, { childList: true, subtree: true });
+                    reportDebug('observer-installed', 'ok');
+                }
+            } catch (fatalError) {
+                reportDebug('fatal', String(fatalError));
             }
         })();
         </script>
