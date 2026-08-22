@@ -555,40 +555,84 @@ def _inject_pwa_head_tags():
         """
         <script>
         (function() {
-            var head = document.head;
-            var staleSelectors = [
+            var STALE_SELECTORS = [
                 'link[rel="manifest"]',
                 'link[rel="apple-touch-icon"]',
+                'link[rel="apple-touch-icon-precomposed"]',
                 'meta[name="apple-mobile-web-app-capable"]',
                 'meta[name="apple-mobile-web-app-title"]',
                 'meta[name="apple-mobile-web-app-status-bar-style"]',
                 'meta[name="theme-color"]'
             ];
-            staleSelectors.forEach(function (selector) {
-                head.querySelectorAll(selector).forEach(function (el) { el.remove(); });
-            });
 
-            function addMeta(name, content) {
-                var el = document.createElement('meta');
-                el.setAttribute('name', name);
-                el.setAttribute('content', content);
-                head.appendChild(el);
+            function applyTags() {
+                var head = document.head;
+                STALE_SELECTORS.forEach(function (selector) {
+                    head.querySelectorAll(selector).forEach(function (el) { el.remove(); });
+                });
+
+                function addMeta(name, content) {
+                    var el = document.createElement('meta');
+                    el.setAttribute('name', name);
+                    el.setAttribute('content', content);
+                    head.appendChild(el);
+                }
+                function addLink(rel, href) {
+                    var el = document.createElement('link');
+                    el.setAttribute('rel', rel);
+                    el.setAttribute('href', href);
+                    head.appendChild(el);
+                }
+
+                addMeta('apple-mobile-web-app-capable', 'yes');
+                addMeta('apple-mobile-web-app-status-bar-style', 'default');
+                addMeta('apple-mobile-web-app-title', 'Y2K Lister');
+                addMeta('theme-color', '#F02AA0');
+                addLink('apple-touch-icon', 'https://womensy2k.github.io/Ai-Lister/apple-touch-icon.png');
+                addLink('manifest', 'https://womensy2k.github.io/Ai-Lister/manifest.json');
+
+                if (document.title !== 'Y2K Lister') {
+                    document.title = 'Y2K Lister';
+                }
             }
-            function addLink(rel, href) {
-                var el = document.createElement('link');
-                el.setAttribute('rel', rel);
-                el.setAttribute('href', href);
-                head.appendChild(el);
+
+            applyTags();
+
+            // This app is actually served through Streamlit Community
+            // Cloud's own gateway/viewer application (a separate React
+            // app wrapping the real one, with its own analytics, login
+            // screen, and — critically — its own manifest/touch-icon
+            // tags managed via react-helmet) — not the plain
+            // open-source Streamlit template. That outer shell can
+            // re-render and re-assert ITS OWN <head> tags at points in
+            // its own lifecycle after this script already ran once,
+            // silently undoing the swap above (confirmed live: a real
+            // iPhone still picked up Streamlit's own name/icon on Add
+            // to Home Screen even after this ran and briefly "won").
+            // A one-time fix can't reliably beat a moving target, so
+            // this keeps re-winning instead: any time something in
+            // <head> changes, immediately re-apply — cheap for a
+            // low-frequency mutation target like <head>, and only ever
+            // touches the small set of tags above (removing them, if
+            // present, is what triggers the observer to fire again,
+            // which is fine — applyTags() re-adding them right after
+            // doesn't loop, since the observer callback runs the SAME
+            // scan on every firing rather than nesting new observers).
+            if (!window.__y2kPwaHeadObserverInstalled) {
+                window.__y2kPwaHeadObserverInstalled = true;
+                // applyTags() itself mutates <head> (remove-then-add),
+                // which would otherwise make the observer re-trigger
+                // itself forever — disconnect before touching the DOM,
+                // reconnect once done, so it only reacts to changes
+                // from OUTSIDE this function (Streamlit Cloud's own
+                // shell), never its own.
+                var observer = new MutationObserver(function () {
+                    observer.disconnect();
+                    applyTags();
+                    observer.observe(document.head, { childList: true, subtree: true });
+                });
+                observer.observe(document.head, { childList: true, subtree: true });
             }
-
-            addMeta('apple-mobile-web-app-capable', 'yes');
-            addMeta('apple-mobile-web-app-status-bar-style', 'default');
-            addMeta('apple-mobile-web-app-title', 'Y2K Lister');
-            addMeta('theme-color', '#F02AA0');
-            addLink('apple-touch-icon', 'https://womensy2k.github.io/Ai-Lister/apple-touch-icon.png');
-            addLink('manifest', 'https://womensy2k.github.io/Ai-Lister/manifest.json');
-
-            document.title = 'Y2K Lister';
         })();
         </script>
         """,
