@@ -555,6 +555,35 @@ def _inject_pwa_head_tags():
         """
         <script>
         (function() {
+            // This app's own content actually renders inside a SAME-ORIGIN
+            // nested iframe (Streamlit Community Cloud's gateway/viewer
+            // shell loads it at a "/~/+/..." sub-path, confirmed live via
+            // window.top.location vs window.location differing) — not as
+            // the true top-level page itself. Safari's Add to Home Screen
+            // reads the TOP-LEVEL document's <head>, so editing plain
+            // `document.head` here was silently editing the WRONG
+            // document the whole time (confirmed live: a real iPhone kept
+            // picking up Streamlit's own name/icon no matter what this
+            // script did locally). window.top.document IS reachable
+            // without a cross-origin error specifically because it's the
+            // same origin (y2klister.streamlit.app either way, just a
+            // different path) — same-origin policy only cares about
+            // scheme+host+port, not path. Falls back to the local
+            // document if window.top is ever cross-origin or unavailable
+            // (e.g. running the plain open-source template locally,
+            // outside Streamlit Cloud, where there's no nesting at all).
+            var targetDoc = document;
+            var targetWin = window;
+            try {
+                if (window.top && window.top.document) {
+                    targetDoc = window.top.document;
+                    targetWin = window.top;
+                }
+            } catch (error) {
+                targetDoc = document;
+                targetWin = window;
+            }
+
             var STALE_SELECTORS = [
                 'link[rel="manifest"]',
                 'link[rel="apple-touch-icon"]',
@@ -566,19 +595,19 @@ def _inject_pwa_head_tags():
             ];
 
             function applyTags() {
-                var head = document.head;
+                var head = targetDoc.head;
                 STALE_SELECTORS.forEach(function (selector) {
                     head.querySelectorAll(selector).forEach(function (el) { el.remove(); });
                 });
 
                 function addMeta(name, content) {
-                    var el = document.createElement('meta');
+                    var el = targetDoc.createElement('meta');
                     el.setAttribute('name', name);
                     el.setAttribute('content', content);
                     head.appendChild(el);
                 }
                 function addLink(rel, href) {
-                    var el = document.createElement('link');
+                    var el = targetDoc.createElement('link');
                     el.setAttribute('rel', rel);
                     el.setAttribute('href', href);
                     head.appendChild(el);
@@ -591,35 +620,21 @@ def _inject_pwa_head_tags():
                 addLink('apple-touch-icon', 'https://womensy2k.github.io/Ai-Lister/apple-touch-icon.png');
                 addLink('manifest', 'https://womensy2k.github.io/Ai-Lister/manifest.json');
 
-                if (document.title !== 'Y2K Lister') {
-                    document.title = 'Y2K Lister';
+                if (targetDoc.title !== 'Y2K Lister') {
+                    targetDoc.title = 'Y2K Lister';
                 }
             }
 
             applyTags();
 
-            // This app is actually served through Streamlit Community
-            // Cloud's own gateway/viewer application (a separate React
-            // app wrapping the real one, with its own analytics, login
-            // screen, and — critically — its own manifest/touch-icon
-            // tags managed via react-helmet) — not the plain
-            // open-source Streamlit template. That outer shell can
-            // re-render and re-assert ITS OWN <head> tags at points in
-            // its own lifecycle after this script already ran once,
-            // silently undoing the swap above (confirmed live: a real
-            // iPhone still picked up Streamlit's own name/icon on Add
-            // to Home Screen even after this ran and briefly "won").
-            // A one-time fix can't reliably beat a moving target, so
-            // this keeps re-winning instead: any time something in
-            // <head> changes, immediately re-apply — cheap for a
-            // low-frequency mutation target like <head>, and only ever
-            // touches the small set of tags above (removing them, if
-            // present, is what triggers the observer to fire again,
-            // which is fine — applyTags() re-adding them right after
-            // doesn't loop, since the observer callback runs the SAME
-            // scan on every firing rather than nesting new observers).
-            if (!window.__y2kPwaHeadObserverInstalled) {
-                window.__y2kPwaHeadObserverInstalled = true;
+            // Streamlit Cloud's own shell manages its head tags via
+            // react-helmet and can re-render/re-assert them after this
+            // already ran once — a one-time fix can't reliably beat a
+            // moving target, so this keeps re-winning instead: any time
+            // something in the target document's <head> changes,
+            // immediately re-apply.
+            if (!targetWin.__y2kPwaHeadObserverInstalled) {
+                targetWin.__y2kPwaHeadObserverInstalled = true;
                 // applyTags() itself mutates <head> (remove-then-add),
                 // which would otherwise make the observer re-trigger
                 // itself forever — disconnect before touching the DOM,
@@ -629,9 +644,9 @@ def _inject_pwa_head_tags():
                 var observer = new MutationObserver(function () {
                     observer.disconnect();
                     applyTags();
-                    observer.observe(document.head, { childList: true, subtree: true });
+                    observer.observe(targetDoc.head, { childList: true, subtree: true });
                 });
-                observer.observe(document.head, { childList: true, subtree: true });
+                observer.observe(targetDoc.head, { childList: true, subtree: true });
             }
         })();
         </script>
