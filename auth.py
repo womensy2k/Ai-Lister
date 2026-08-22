@@ -576,11 +576,11 @@ def require_auth():
     """Call at the very top of every page, before rendering anything
     else. Returns {"id", "email"} for the logged-in user. Renders the
     login/signup screen and st.stop()s if there's no valid session."""
-    _inject_pwa_head_tags()
-
     if _try_consume_recovery_link():
         _render_auth_screen()
         st.stop()
+
+    _inject_pwa_head_tags()  # TEMP: moved to AFTER the already-proven-working st.html call above, to test an ordering hypothesis.
 
     if "auth_user" in st.session_state:
         return st.session_state["auth_user"]
