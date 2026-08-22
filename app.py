@@ -738,6 +738,18 @@ def _inject_global_brand_css():
         }
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&display=swap');
 
+        /* Only matters for the installed home-screen PWA (docs/index.html
+           navigates the top-level page straight into this app now, no
+           iframe wrapper around it anymore — see that file for why).
+           Standalone mode has no browser chrome to absorb the bottom
+           home-indicator safe area, so without this, content can sit
+           flush behind it. */
+        @media (display-mode: standalone) {
+            .stApp {
+                padding-bottom: env(safe-area-inset-bottom, 0px);
+            }
+        }
+
         .brand-header {
             background: linear-gradient(135deg, #FBF3E3 0%, #FFFFFF 65%);
             border: 1px solid rgba(240, 42, 160, .16);

@@ -48,28 +48,27 @@
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  /* Covers TWO things at the bottom: the home-indicator gesture bar's
-     safe area, AND Streamlit's own "Built with Streamlit / Fullscreen"
-     attribution bar baked into the embedded view (not something any
-     embed_options setting can turn off). The iframe stays FULL height
-     behind this — this sits on top (higher z-index) and simply hides
-     that strip rather than shrinking the iframe to make room for it. */
-  .bottom-fill {
+  /* Shown only for the instant before the redirect below fires (or if
+     JS is disabled — see the <noscript> fallback), so there's never a
+     blank white flash on launch. */
+  .splash {
     position: fixed;
-    bottom: 0; left: 0; right: 0;
-    height: env(safe-area-inset-bottom, 0px);
-    background: #FFFFFF;
-    z-index: 10;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
   }
-  iframe {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100dvh;
-    border: 0;
-    background: #FBF3E3;
+  .splash img { width: 96px; height: 96px; border-radius: 22px; }
+  .splash .spinner {
+    width: 22px; height: 22px;
+    border: 3px solid rgba(240, 42, 160, .18);
+    border-top-color: #F02AA0;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
   }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .offline-banner {
     position: fixed;
     left: 0; right: 0;
@@ -87,17 +86,36 @@
 </style>
 </head>
 <body>
-  <div class="bottom-fill"></div>
-  <iframe
-    src="https://y2klister.streamlit.app/?embed=true&embed_options=light_theme"
-    title="Y2K Lister"
-    allow="clipboard-write; fullscreen"
-  ></iframe>
+  <!-- No iframe here on purpose. This app was previously embedded in an
+       <iframe> pointing at the real Streamlit Cloud app — but from
+       inside a standalone, "Added to Home Screen" PWA on iOS, that made
+       every cookie the login session depends on a cross-site,
+       THIRD-PARTY cookie, which iOS's WKWebView (the engine standalone
+       PWAs run in) blocks/discards far more aggressively than Safari
+       proper. That's what silently broke "stay logged in" on the
+       home-screen app specifically, while working fine in a normal
+       Safari tab. Redirecting the TOP-LEVEL page here to the real app
+       instead makes it first-party from the browser's point of view —
+       the manifest/icons below still make this installable as its own
+       home-screen app (the redirect happens inside that same standalone
+       shell), it just no longer iframes the real thing. -->
+  <div class="splash" id="splash">
+    <img src="icon-192.png" alt="">
+    <div class="spinner"></div>
+  </div>
   <div class="offline-banner" id="offlineBanner">
     You're offline — Y2K Lister needs an internet connection.
   </div>
+  <noscript>
+    <meta http-equiv="refresh" content="0; url=https://y2klister.streamlit.app/?embed=true&embed_options=light_theme">
+    <p style="text-align:center; margin-top:40vh; font-family:sans-serif;">
+      <a href="https://y2klister.streamlit.app/?embed=true&embed_options=light_theme">Open Y2K Lister</a>
+    </p>
+  </noscript>
 
   <script>
+    var DEST = "https://y2klister.streamlit.app/?embed=true&embed_options=light_theme";
+
     function updateOnlineStatus() {
       var banner = document.getElementById('offlineBanner');
       if (navigator.onLine) {
@@ -109,6 +127,16 @@
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
     updateOnlineStatus();
+
+    if (navigator.onLine) {
+      window.location.replace(DEST);
+    } else {
+      // Wait for connectivity instead of redirecting straight into a
+      // browser-native offline error page.
+      window.addEventListener('online', function () {
+        window.location.replace(DEST);
+      });
+    }
   </script>
 </body>
 </html>
