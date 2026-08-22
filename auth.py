@@ -146,8 +146,14 @@ def _restore_session_from_cookie():
         return None
 
 
-def _set_logged_in(session, user):
+def _set_logged_in(session, user, remember=True):
     st.session_state["auth_user"] = {"id": user.id, "email": user.email}
+    if not remember:
+        # Explicitly unchecked "Remember me" — session_state alone
+        # keeps them logged in for this browser tab, but nothing is
+        # written to a cookie, so closing the browser (or a fresh tab)
+        # lands back on the login screen instead of restoring.
+        return
     _store_session_cookie(session.access_token, session.refresh_token)
     # CookieManager.set() is a real Streamlit component call — it posts
     # a message to its iframe and returns immediately, it does NOT wait
@@ -253,6 +259,7 @@ def _render_login_form():
     with st.form("auth_login_form"):
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
+        remember = st.checkbox("Remember me", value=True, key="auth_remember_me")
         submitted = st.form_submit_button(
             "Log In", type="primary", width="stretch"
         )
@@ -269,7 +276,7 @@ def _render_login_form():
             if response.session is None:
                 st.error("Login failed. Check your email and password.")
                 return
-            _set_logged_in(response.session, response.user)
+            _set_logged_in(response.session, response.user, remember=remember)
             st.rerun()
         except Exception as error:
             st.error(f"Login failed: {error}")
