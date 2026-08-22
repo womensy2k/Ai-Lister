@@ -551,28 +551,103 @@ def _inject_pwa_head_tags():
     when "Add to Home Screen" is tapped. Idempotent — always removes
     before adding, so re-running this every rerun never duplicates tags.
     """
-    # TEMPORARY MINIMAL DIAGNOSTIC — bisecting why the fuller version
-    # left zero trace (no script tag, no global marker, nothing) on the
-    # real Streamlit Cloud deployment despite working perfectly in an
-    # isolated standalone test and despite a structurally-similar
-    # st.html(unsafe_allow_javascript=True) call elsewhere in this same
-    # file (the recovery-link fragment rewriter) being proven to run
-    # live. This is the smallest possible script, structured as close
-    # to that known-working one as possible, to isolate whether it's a
-    # complexity/length issue or something else.
-    st.markdown('<div id="y2k-python-reached-marker">PYTHON_REACHED_THIS_FUNCTION</div>', unsafe_allow_html=True)
     st.html(
         """
         <script>
         (function() {
-            document.head.insertAdjacentHTML('beforeend', '<meta name="y2k-min-test" content="ran">');
+            // This app's own content actually renders inside a SAME-ORIGIN
+            // nested iframe (Streamlit Community Cloud's gateway/viewer
+            // shell loads it at a "/~/+/..." sub-path) — not as the true
+            // top-level page itself. Safari's Add to Home Screen reads the
+            // TOP-LEVEL document's <head>, so editing plain document.head
+            // here would silently edit the WRONG document. window.top.document
+            // IS reachable without a cross-origin error specifically because
+            // it's the same origin (y2klister.streamlit.app either way,
+            // just a different path) — same-origin policy only cares about
+            // scheme+host+port, not path. Falls back to the local document
+            // if window.top is ever cross-origin or unavailable (e.g.
+            // running the plain open-source template locally, outside
+            // Streamlit Cloud, where there's no nesting at all).
+            var targetDoc = document;
+            var targetWin = window;
+            try {
+                if (window.top && window.top.document) {
+                    targetDoc = window.top.document;
+                    targetWin = window.top;
+                }
+            } catch (topError) {
+                targetDoc = document;
+                targetWin = window;
+            }
+
+            var STALE_SELECTORS = [
+                'link[rel="manifest"]',
+                'link[rel="apple-touch-icon"]',
+                'link[rel="apple-touch-icon-precomposed"]',
+                'meta[name="apple-mobile-web-app-capable"]',
+                'meta[name="apple-mobile-web-app-title"]',
+                'meta[name="apple-mobile-web-app-status-bar-style"]',
+                'meta[name="theme-color"]'
+            ];
+
+            function applyTags() {
+                var head = targetDoc.head;
+                STALE_SELECTORS.forEach(function (selector) {
+                    var found = head.querySelectorAll(selector);
+                    for (var i = 0; i < found.length; i++) { found[i].remove(); }
+                });
+
+                function addMeta(name, content) {
+                    var el = targetDoc.createElement('meta');
+                    el.setAttribute('name', name);
+                    el.setAttribute('content', content);
+                    head.appendChild(el);
+                }
+                function addLink(rel, href) {
+                    var el = targetDoc.createElement('link');
+                    el.setAttribute('rel', rel);
+                    el.setAttribute('href', href);
+                    head.appendChild(el);
+                }
+
+                addMeta('apple-mobile-web-app-capable', 'yes');
+                addMeta('apple-mobile-web-app-status-bar-style', 'default');
+                addMeta('apple-mobile-web-app-title', 'Y2K Lister');
+                addMeta('theme-color', '#F02AA0');
+                addLink('apple-touch-icon', 'https://womensy2k.github.io/Ai-Lister/apple-touch-icon.png');
+                addLink('manifest', 'https://womensy2k.github.io/Ai-Lister/manifest.json');
+
+                if (targetDoc.title !== 'Y2K Lister') {
+                    targetDoc.title = 'Y2K Lister';
+                }
+            }
+
+            applyTags();
+
+            // Streamlit Cloud's own shell manages its head tags via
+            // react-helmet and can re-render/re-assert them after this
+            // already ran once — a one-time fix can't reliably beat a
+            // moving target, so this keeps re-winning instead: any time
+            // something in the target document's <head> changes,
+            // immediately re-apply.
+            if (!targetWin.__y2kPwaHeadObserverInstalled) {
+                targetWin.__y2kPwaHeadObserverInstalled = true;
+                // applyTags() itself mutates <head> (remove-then-add),
+                // which would otherwise make the observer re-trigger
+                // itself forever — disconnect before touching the DOM,
+                // reconnect once done, so it only reacts to changes
+                // from OUTSIDE this function (Streamlit Cloud's own
+                // shell), never its own.
+                var observer = new MutationObserver(function () {
+                    observer.disconnect();
+                    applyTags();
+                    observer.observe(targetDoc.head, { childList: true, subtree: true });
+                });
+                observer.observe(targetDoc.head, { childList: true, subtree: true });
+            }
         })();
         </script>
         """,
-        unsafe_allow_javascript=True,
-    )
-    st.html(
-        "<script>document.body.setAttribute('data-y2k-body-script-ran', 'yes');</script>",
         unsafe_allow_javascript=True,
     )
 
@@ -581,11 +656,11 @@ def require_auth():
     """Call at the very top of every page, before rendering anything
     else. Returns {"id", "email"} for the logged-in user. Renders the
     login/signup screen and st.stop()s if there's no valid session."""
+    _inject_pwa_head_tags()
+
     if _try_consume_recovery_link():
         _render_auth_screen()
         st.stop()
-
-    _inject_pwa_head_tags()  # TEMP: moved to AFTER the already-proven-working st.html call above, to test an ordering hypothesis.
 
     if "auth_user" in st.session_state:
         return st.session_state["auth_user"]
