@@ -551,93 +551,20 @@ def _inject_pwa_head_tags():
     when "Add to Home Screen" is tapped. Idempotent — always removes
     before adding, so re-running this every rerun never duplicates tags.
     """
+    # TEMPORARY MINIMAL DIAGNOSTIC — bisecting why the fuller version
+    # left zero trace (no script tag, no global marker, nothing) on the
+    # real Streamlit Cloud deployment despite working perfectly in an
+    # isolated standalone test and despite a structurally-similar
+    # st.html(unsafe_allow_javascript=True) call elsewhere in this same
+    # file (the recovery-link fragment rewriter) being proven to run
+    # live. This is the smallest possible script, structured as close
+    # to that known-working one as possible, to isolate whether it's a
+    # complexity/length issue or something else.
     st.html(
         """
         <script>
         (function() {
-            function reportDebug(stage, info) {
-                try {
-                    var existing = document.head.querySelector('meta[name="y2k-pwa-debug"]');
-                    if (existing) existing.remove();
-                    var el = document.createElement('meta');
-                    el.setAttribute('name', 'y2k-pwa-debug');
-                    el.setAttribute('content', stage + ': ' + info);
-                    document.head.appendChild(el);
-                } catch (reportError) { /* nothing more we can do */ }
-            }
-
-            try {
-                reportDebug('start', 'script running, local origin=' + window.location.origin);
-
-                var targetDoc = document;
-                var targetWin = window;
-                try {
-                    if (window.top && window.top.document) {
-                        targetDoc = window.top.document;
-                        targetWin = window.top;
-                    }
-                } catch (topError) {
-                    reportDebug('top-access-failed', String(topError));
-                }
-
-                var STALE_SELECTORS = [
-                    'link[rel="manifest"]',
-                    'link[rel="apple-touch-icon"]',
-                    'link[rel="apple-touch-icon-precomposed"]',
-                    'meta[name="apple-mobile-web-app-capable"]',
-                    'meta[name="apple-mobile-web-app-title"]',
-                    'meta[name="apple-mobile-web-app-status-bar-style"]',
-                    'meta[name="theme-color"]'
-                ];
-
-                function applyTags() {
-                    var head = targetDoc.head;
-                    STALE_SELECTORS.forEach(function (selector) {
-                        var found = head.querySelectorAll(selector);
-                        for (var i = 0; i < found.length; i++) { found[i].remove(); }
-                    });
-
-                    function addMeta(name, content) {
-                        var el = targetDoc.createElement('meta');
-                        el.setAttribute('name', name);
-                        el.setAttribute('content', content);
-                        head.appendChild(el);
-                    }
-                    function addLink(rel, href) {
-                        var el = targetDoc.createElement('link');
-                        el.setAttribute('rel', rel);
-                        el.setAttribute('href', href);
-                        head.appendChild(el);
-                    }
-
-                    addMeta('apple-mobile-web-app-capable', 'yes');
-                    addMeta('apple-mobile-web-app-status-bar-style', 'default');
-                    addMeta('apple-mobile-web-app-title', 'Y2K Lister');
-                    addMeta('theme-color', '#F02AA0');
-                    addLink('apple-touch-icon', 'https://womensy2k.github.io/Ai-Lister/apple-touch-icon.png');
-                    addLink('manifest', 'https://womensy2k.github.io/Ai-Lister/manifest.json');
-
-                    if (targetDoc.title !== 'Y2K Lister') {
-                        targetDoc.title = 'Y2K Lister';
-                    }
-                }
-
-                applyTags();
-                reportDebug('applied', 'targetDoc.title=' + targetDoc.title + ' sameAsTop=' + (targetDoc === document ? 'no' : 'yes'));
-
-                if (!targetWin.__y2kPwaHeadObserverInstalled) {
-                    targetWin.__y2kPwaHeadObserverInstalled = true;
-                    var observer = new MutationObserver(function () {
-                        observer.disconnect();
-                        applyTags();
-                        observer.observe(targetDoc.head, { childList: true, subtree: true });
-                    });
-                    observer.observe(targetDoc.head, { childList: true, subtree: true });
-                    reportDebug('observer-installed', 'ok');
-                }
-            } catch (fatalError) {
-                reportDebug('fatal', String(fatalError));
-            }
+            document.head.insertAdjacentHTML('beforeend', '<meta name="y2k-min-test" content="ran">');
         })();
         </script>
         """,
